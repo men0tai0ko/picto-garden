@@ -1,10 +1,13 @@
 /**
  * script.js — エントリポイント
- * T1対象：ペット生成UI・画面遷移・ステータスバー・ケージ表示・図鑑表示
+ * T1：ペット生成UI・画面遷移・ステータスバー・ケージ表示・図鑑表示
+ * T2：庭表示・下部パネル
+ * T3：餌システム（ショップUI・餌購入・ステータス上昇）
  */
 
-import { initDB, getUser, saveUser, getAllPets, getPet, registerNewPet } from './state.js';
+import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES } from './petGenerator.js';
+import { spendCurrency } from './economy.js';
 
 // ===== 起動 =====
 (async () => {
@@ -14,6 +17,7 @@ import { generatePetFromImage, PET_TYPES, PERSONALITIES } from './petGenerator.j
     await renderEncyclopedia();
     await renderCage();
     await renderGarden();
+    await renderShop();
     initNavigation();
     initGenerateScreen();
   } catch (err) {
@@ -293,10 +297,34 @@ function showPetPanel(pet) {
       <div class="panel-stat-label">空腹度</div>
       <div style="display:flex;gap:4px">${hungerDots}</div>
     </div>
+    <div style="margin-top:14px;display:flex;justify-content:center">
+      <button id="panel-feed-btn" class="btn-primary" style="font-size:13px;padding:10px 24px">
+        🍖 えさをあげる
+      </button>
+    </div>
   `;
 
   panel.classList.remove('hidden');
   panel.classList.add('open');
+
+  document.getElementById('panel-feed-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('panel-feed-btn');
+    btn.disabled = true;
+    const result = await feedPet(pet);
+    if (!result.ok) {
+      btn.disabled = false;
+      alert(result.message);
+      return;
+    }
+    // パネルをpet最新状態で再描画
+    const updated = await getPet(pet.id);
+    if (updated) {
+      Object.assign(pet, updated);
+      showPetPanel(pet);
+    }
+    await renderStatusBar();
+    await renderGarden();
+  });
 
   document.getElementById('panel-close').onclick = () => {
     panel.classList.remove('open');
@@ -313,6 +341,155 @@ function statBar(label, value, cssClass) {
       </div>
     </div>
   `;
+}
+
+// ===== T3：餌システム定数 =====
+
+/** ステータス上昇確率減衰（spec.md 1.5） */
+const STAT_DECAY = [
+  { threshold: 0.91, multiplier: 0.1 },
+  { threshold: 0.71, multiplier: 0.5 },
+  { threshold: 0,    multiplier: 1.0 },
+];
+
+/** 性格別成長補正（PERSONALITIES配列インデックスに対応） */
+const PERSONALITY_BONUS = [
+  { stat: 'attack',  mult: 1.5 }, // 0:勇猛
+  { stat: 'mp',      mult: 1.5 }, // 1:活発
+  { stat: 'hp',      mult: 1.5 }, // 2:強靭
+  { stat: 'defense', mult: 1.5 }, // 3:堅固
+  { stat: 'all',     mult: 1.2 }, // 4:神秘
+];
+
+/** レア成長確率・値 */
+const RARE_GROWTH_PROB  = 0.05; // 5%
+const RARE_GROWTH_VALUE = 10;
+
+/** 通常成長：+1〜+5 */
+const STAT_GROWTH_MIN = 1;
+const STAT_GROWTH_MAX = 5;
+
+/** 餌の空腹回復量 */
+const FEED_HUNGER_RESTORE = 20;
+
+/** 餌のHP回復量 */
+const FEED_HP_RESTORE = 20;
+
+/** ステータス上限 */
+const STAT_CAP = 100;
+
+/**
+ * 1ステータスの上昇量を計算（確率減衰・性格補正適用）
+ * @param {number} current - 現在値
+ * @param {boolean} bonusStat - 性格ボーナス対象か
+ * @param {number} bonusMult - ボーナス倍率
+ * @returns {number} 上昇量（0以上）
+ */
+function calcStatGain(current, bonusStat, bonusMult) {
+  const ratio = current / STAT_CAP;
+  const decayEntry = STAT_DECAY.find(d => ratio >= d.threshold);
+  const decayMult  = decayEntry ? decayEntry.multiplier : 0.1;
+
+  // 減衰確率でスキップ判定（×1.0以外は確率的にスキップ）
+  if (decayMult < 1.0 && Math.random() > decayMult) return 0;
+
+  const isRare = Math.random() < RARE_GROWTH_PROB;
+  let gain = isRare
+    ? RARE_GROWTH_VALUE
+    : Math.floor(Math.random() * (STAT_GROWTH_MAX - STAT_GROWTH_MIN + 1)) + STAT_GROWTH_MIN;
+
+  if (bonusStat) gain = Math.round(gain * bonusMult);
+  return gain;
+}
+
+/**
+ * 餌やり処理（T3コア）
+ * @param {Pet} pet
+ * @returns {Promise<{ok: boolean, message?: string}>}
+ */
+async function feedPet(pet) {
+  const user  = await getUser();
+  const price = 10 * user.level;
+
+  const { ok } = await spendCurrency(price);
+  if (!ok) return { ok: false, message: `通貨が足りません（必要: 🪙${price}）` };
+
+  const fresh = await getPet(pet.id);
+  if (!fresh) return { ok: false, message: 'ペットデータが見つかりません' };
+
+  // 空腹度回復
+  fresh.hunger = Math.min(100, fresh.hunger + FEED_HUNGER_RESTORE);
+
+  // HP+20回復
+  fresh.hp = Math.min(STAT_CAP, fresh.hp + FEED_HP_RESTORE);
+
+  // 全ステータスが上限か判定
+  const allCapped = fresh.mp >= STAT_CAP && fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
+
+  if (!allCapped) {
+    const bonus = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
+
+    const applyGain = (stat) => {
+      if (fresh[stat] >= STAT_CAP) return;
+      const isBonusStat = bonus.stat === stat || bonus.stat === 'all';
+      const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult);
+      fresh[stat] = Math.min(STAT_CAP, fresh[stat] + gain);
+    };
+
+    applyGain('mp');
+    applyGain('attack');
+    applyGain('defense');
+  }
+
+  await savePet(fresh);
+  return { ok: true };
+}
+
+// ===== T3：ショップ =====
+async function renderShop() {
+  const container = document.getElementById('shop-items');
+  container.innerHTML = '';
+
+  const user  = await getUser();
+  const price = 10 * user.level;
+
+  const card = document.createElement('div');
+  card.className = 'shop-card';
+  card.innerHTML = `
+    <div class="shop-card-icon">🍖</div>
+    <div class="shop-card-info">
+      <h3>ペットフード</h3>
+      <p>空腹度回復・HP+20・ステータス上昇</p>
+    </div>
+    <span class="shop-price">🪙${price}</span>
+    <button class="btn-buy" id="shop-buy-feed">購入</button>
+  `;
+  container.appendChild(card);
+
+  document.getElementById('shop-buy-feed').addEventListener('click', async () => {
+    const btn = document.getElementById('shop-buy-feed');
+    // 庭の先頭ペットに給餌（庭にペットがいない場合は選択不可）
+    const u    = await getUser();
+    if (u.gardenPetIds.length === 0) {
+      alert('庭にペットを出してから餌を与えてください');
+      return;
+    }
+    btn.disabled = true;
+    const pet = await getPet(u.gardenPetIds[0]);
+    if (!pet) { btn.disabled = false; return; }
+
+    const result = await feedPet(pet);
+    btn.disabled = false;
+    if (!result.ok) {
+      alert(result.message);
+      return;
+    }
+    // 価格表示・ステータスバー更新
+    const updated = await getUser();
+    const newPrice = 10 * updated.level;
+    document.querySelector('#shop-items .shop-price').textContent = `🪙${newPrice}`;
+    await renderStatusBar();
+  });
 }
 
 // ===== 図鑑 =====
