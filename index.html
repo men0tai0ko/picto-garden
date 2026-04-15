@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>たまてばこペット / Picto Garden</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ステータスバー（上部常時表示） -->
+  <header id="status-bar">
+    <span id="user-level">Lv.1</span>
+    <div id="exp-bar-wrap"><div id="exp-bar"></div></div>
+    <span id="currency-display">🪙 <span id="currency-value">100</span></span>
+  </header>
+
+  <!-- 画面コンテナ -->
+  <main id="screens">
+
+    <!-- 庭（ホーム） -->
+    <section id="screen-garden" class="screen active">
+      <div id="garden-sky"></div>
+      <div id="garden-ground"></div>
+      <div id="garden-pets"></div>
+      <p id="garden-empty-msg">ケージからペットを庭に出そう！</p>
+    </section>
+
+    <!-- ケージ -->
+    <section id="screen-cage" class="screen">
+      <h2 class="screen-title">ケージ</h2>
+      <div id="cage-grid"></div>
+    </section>
+
+    <!-- 生成 -->
+    <section id="screen-generate" class="screen">
+      <h2 class="screen-title">ペット生成</h2>
+      <div id="generate-area">
+        <div id="upload-zone" role="button" tabindex="0" aria-label="画像をアップロード">
+          <span id="upload-icon">📷</span>
+          <p>画像を選択してペットを生成</p>
+          <input type="file" id="image-input" accept="image/*" hidden>
+        </div>
+        <canvas id="analyze-canvas" hidden></canvas>
+        <div id="preview-wrap" hidden>
+          <img id="preview-img" alt="アップロードプレビュー">
+        </div>
+        <button id="generate-btn" class="btn-primary" hidden>ペットを生成する ✨</button>
+        <div id="generate-result" hidden></div>
+      </div>
+    </section>
+
+    <!-- ショップ -->
+    <section id="screen-shop" class="screen">
+      <h2 class="screen-title">ショップ</h2>
+      <div id="shop-items"></div>
+    </section>
+
+    <!-- 訓練 -->
+    <section id="screen-battle" class="screen">
+      <h2 class="screen-title">訓練</h2>
+      <p class="placeholder-msg">T4で実装予定</p>
+    </section>
+
+    <!-- 図鑑 -->
+    <section id="screen-encyclopedia" class="screen">
+      <h2 class="screen-title">図鑑</h2>
+      <div id="encyclopedia-grid"></div>
+    </section>
+
+  </main>
+
+  <!-- 下部パネル（庭ペットタップ時） -->
+  <div id="pet-panel" class="panel hidden">
+    <div class="panel-handle"></div>
+    <div id="panel-content"></div>
+    <button id="panel-close" aria-label="閉じる">✕</button>
+  </div>
+
+  <!-- 生成完了オーバーレイ -->
+  <div id="overlay-generated" class="overlay hidden">
+    <div class="overlay-card">
+      <h3>✨ ペット誕生！</h3>
+      <div id="overlay-pet-info"></div>
+      <button class="btn-primary" id="overlay-ok-btn">ケージへ</button>
+    </div>
+  </div>
+
+  <!-- ボトムナビ -->
+  <nav id="bottom-nav">
+    <button class="nav-btn active" data-screen="garden">🏡<span>庭</span></button>
+    <button class="nav-btn" data-screen="cage">🐾<span>ケージ</span></button>
+    <button class="nav-btn" data-screen="battle">⚔️<span>訓練</span></button>
+    <button class="nav-btn" data-screen="shop">🛒<span>ショップ</span></button>
+    <button class="nav-btn" data-screen="encyclopedia">📖<span>図鑑</span></button>
+  </nav>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
