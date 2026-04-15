@@ -364,7 +364,7 @@ body {
 /* ===== 下部パネル ===== */
 #pet-panel {
   position: fixed;
-  bottom: calc(var(--nav-height) + var(--safe-bottom));
+  bottom: 0;
   left: 0; right: 0;
   max-height: 55vh;
   overflow-y: auto;
@@ -375,8 +375,12 @@ body {
   z-index: 200;
   transition: transform 0.3s cubic-bezier(.4,0,.2,1);
   transform: translateY(100%);
+  pointer-events: none;
 }
-#pet-panel.open   { transform: translateY(0); pointer-events: auto; }
+#pet-panel.open {
+  transform: translateY(calc(-1 * (var(--nav-height) + var(--safe-bottom))));
+  pointer-events: auto;
+}
 #pet-panel.hidden { transform: translateY(100%); pointer-events: none; }
 .panel-handle {
   width: 40px; height: 5px;
