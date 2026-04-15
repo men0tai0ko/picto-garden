@@ -219,7 +219,7 @@ async function renderCage() {
   grid.appendChild(emptySlot);
 }
 
-// ===== 庭（T2の骨格・T1で基本実装） =====
+// ===== 庭（T2） =====
 async function renderGarden() {
   const user      = await getUser();
   const petsArea  = document.getElementById('garden-pets');
@@ -236,15 +236,37 @@ async function renderGarden() {
     const pet = await getPet(petId);
     if (!pet) continue;
 
-    const imgEl     = document.createElement('img');
-    imgEl.className = `garden-pet ${PET_TYPES[pet.typeIndex]?.animClass ?? ''}`;
-    const blobUrl   = URL.createObjectURL(pet.imageData);
-    imgEl.src       = blobUrl;
-    imgEl.alt       = pet.type;
+    // Canvas正方形クロップ＋角丸処理（spec.md 7.2）
+    const canvas  = document.createElement('canvas');
+    const SIZE    = 80;
+    const RADIUS  = 16;
+    canvas.width  = SIZE;
+    canvas.height = SIZE;
+    canvas.className = `garden-pet ${PET_TYPES[pet.typeIndex]?.animClass ?? ''}`;
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', pet.type);
+
+    const blobUrl = URL.createObjectURL(pet.imageData);
+    const img = new Image();
+    img.onload = () => {
+      const ctx = canvas.getContext('2d');
+      // 正方形クロップ（min辺基準・中央）
+      const s  = Math.min(img.naturalWidth, img.naturalHeight);
+      const sx = (img.naturalWidth  - s) / 2;
+      const sy = (img.naturalHeight - s) / 2;
+      // 角丸クリッピング
+      ctx.beginPath();
+      ctx.roundRect(0, 0, SIZE, SIZE, RADIUS);
+      ctx.clip();
+      ctx.drawImage(img, sx, sy, s, s, 0, 0, SIZE, SIZE);
+      URL.revokeObjectURL(blobUrl);
+    };
+    img.onerror = () => URL.revokeObjectURL(blobUrl);
+    img.src = blobUrl;
 
     // タップ → 下部パネル
-    imgEl.addEventListener('click', () => showPetPanel(pet));
-    petsArea.appendChild(imgEl);
+    canvas.addEventListener('click', () => showPetPanel(pet));
+    petsArea.appendChild(canvas);
   }
 }
 
