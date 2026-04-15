@@ -366,15 +366,18 @@ body {
   position: fixed;
   bottom: calc(var(--nav-height) + var(--safe-bottom));
   left: 0; right: 0;
+  max-height: 55vh;
+  overflow-y: auto;
   background: var(--color-white);
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.13);
   padding: 12px 20px 20px;
   z-index: 200;
   transition: transform 0.3s cubic-bezier(.4,0,.2,1);
-  transform: translateY(0);
+  transform: translateY(100%);
 }
-#pet-panel.hidden { transform: translateY(110%); pointer-events: none; }
+#pet-panel.open   { transform: translateY(0); pointer-events: auto; }
+#pet-panel.hidden { transform: translateY(100%); pointer-events: none; }
 .panel-handle {
   width: 40px; height: 5px;
   background: #DDD;

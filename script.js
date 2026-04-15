@@ -274,8 +274,10 @@ function showPetPanel(pet) {
   `;
 
   panel.classList.remove('hidden');
+  panel.classList.add('open');
 
   document.getElementById('panel-close').onclick = () => {
+    panel.classList.remove('open');
     panel.classList.add('hidden');
   };
 }
