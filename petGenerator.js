@@ -38,6 +38,13 @@ const RARITY_THRESHOLDS = [
   { min:    0, label: '★ コモン'   },
 ];
 
+/** レア度別初期ステータス上限係数（フォールバック: ×1.0） */
+const RARITY_STAT_MULT = {
+  '★★★ レア':    1.6,
+  '★★ アンコモン': 1.3,
+  '★ コモン':     1.0,
+};
+
 /** 輪郭解析：エッジ密度閾値（輪郭 → 種類） */
 const EDGE_DENSITY_THRESHOLDS = {
   aspect_tall:   0.8,   // 縦横比（高さ/幅）：縦長判定
@@ -163,16 +170,17 @@ export function analyzeRarity(pixels) {
 
 function buildPetObject({ typeIndex, personality, attribute, rarity, imageBlob }) {
   const id = `pet_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const rarityMult = RARITY_STAT_MULT[rarity] ?? 1.0;
 
   return {
     id,
     typeIndex,                         // encyclopediaFlags配列の添字
     type:        PET_TYPES[typeIndex].label,
     level:       1,
-    hp:          randStat(),
-    mp:          randStat(),
-    attack:      randStat(),
-    defense:     randStat(),
+    hp:          randStat(rarityMult),
+    mp:          randStat(rarityMult),
+    attack:      randStat(rarityMult),
+    defense:     randStat(rarityMult),
     hunger:      100,
     personalityIndex: personality,
     personality: PERSONALITIES[personality].label,
@@ -182,8 +190,9 @@ function buildPetObject({ typeIndex, personality, attribute, rarity, imageBlob }
   };
 }
 
-function randStat() {
-  return Math.floor(Math.random() * (INIT_STAT_MAX - INIT_STAT_MIN + 1)) + INIT_STAT_MIN;
+function randStat(rarityMult = 1.0) {
+  const max = Math.round(INIT_STAT_MAX * rarityMult);
+  return Math.floor(Math.random() * (max - INIT_STAT_MIN + 1)) + INIT_STAT_MIN;
 }
 
 // ===== 画像ユーティリティ =====

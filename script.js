@@ -174,11 +174,17 @@ function showGeneratedOverlay(pet) {
   infoArea.innerHTML = '';
   infoArea.appendChild(imgEl);
 
+  const rarityDesc = {
+    '★★★ レア':    '初期値・成長率高め',
+    '★★ アンコモン': '初期値・成長率やや高め',
+    '★ コモン':     '初期値・成長率ともに標準',
+  };
   const infoHTML = `
     <div class="result-row">種類: <span>${pet.type}</span></div>
     <div class="result-row">性格: <span>${pet.personality}</span></div>
     <div class="result-row">属性: <span>${pet.attribute}</span></div>
     <div class="result-row">レア度: <span>${pet.rarity}</span></div>
+    <div class="result-row" style="font-size:11px;color:var(--color-text-light)">${rarityDesc[pet.rarity] ?? ''}</div>
     <div class="result-row">HP: <span>${pet.hp}</span> / MP: <span>${pet.mp}</span></div>
     <div class="result-row">攻撃: <span>${pet.attack}</span> / 防御: <span>${pet.defense}</span></div>
   `;
@@ -591,8 +597,15 @@ const PERSONALITY_BONUS = [
 ];
 
 /** レア成長確率・値 */
-const RARE_GROWTH_PROB  = 0.05; // 5%
+const RARE_GROWTH_PROB  = 0.05; // 5%（フォールバック用・直接参照禁止）
 const RARE_GROWTH_VALUE = 10;
+
+/** レア度別レアボーナス確率（フォールバック: 5%） */
+const RARITY_GROWTH_PROB = {
+  '★★★ レア':    0.20,
+  '★★ アンコモン': 0.10,
+  '★ コモン':     0.05,
+};
 
 /** 通常成長：+1〜+5 */
 const STAT_GROWTH_MIN = 1;
@@ -612,9 +625,10 @@ const STAT_CAP = 100;
  * @param {number} current - 現在値
  * @param {boolean} bonusStat - 性格ボーナス対象か
  * @param {number} bonusMult - ボーナス倍率
+ * @param {number} [rarityGrowthProb] - レア度別ボーナス確率（省略時はコモン相当）
  * @returns {number} 上昇量（0以上）
  */
-function calcStatGain(current, bonusStat, bonusMult) {
+function calcStatGain(current, bonusStat, bonusMult, rarityGrowthProb = RARE_GROWTH_PROB) {
   const ratio = current / STAT_CAP;
   const decayEntry = STAT_DECAY.find(d => ratio >= d.threshold);
   const decayMult  = decayEntry ? decayEntry.multiplier : 0.1;
@@ -622,7 +636,7 @@ function calcStatGain(current, bonusStat, bonusMult) {
   // 減衰確率でスキップ判定（×1.0以外は確率的にスキップ）
   if (decayMult < 1.0 && Math.random() > decayMult) return 0;
 
-  const isRare = Math.random() < RARE_GROWTH_PROB;
+  const isRare = Math.random() < rarityGrowthProb;
   let gain = isRare
     ? RARE_GROWTH_VALUE
     : Math.floor(Math.random() * (STAT_GROWTH_MAX - STAT_GROWTH_MIN + 1)) + STAT_GROWTH_MIN;
@@ -656,12 +670,13 @@ async function feedPet(pet) {
   fresh.hp = Math.min(STAT_CAP, fresh.hp + FEED_HP_RESTORE);
 
   if (!allCapped) {
-    const bonus = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
+    const bonus      = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
+    const growthProb = RARITY_GROWTH_PROB[fresh.rarity] ?? RARE_GROWTH_PROB;
 
     const applyGain = (stat) => {
       if (fresh[stat] >= STAT_CAP) return;
       const isBonusStat = bonus.stat === stat || bonus.stat === 'all';
-      const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult);
+      const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult, growthProb);
       fresh[stat] = Math.min(STAT_CAP, fresh[stat] + gain);
     };
 
