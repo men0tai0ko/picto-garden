@@ -17,6 +17,7 @@
   --safe-bottom:      env(safe-area-inset-bottom, 0px);
   --statusbar-height: 48px;
   --transition:       0.22s ease;
+  --color-evo-stage1: #C0C0C0;
 }
 
 /* ===== リセット ===== */
@@ -493,3 +494,7 @@ body {
 }
 .nav-btn span { font-size: 10px; font-weight: 600; }
 .nav-btn.active { color: var(--color-main); }
+
+/* ===== 進化フレーム枠 ===== */
+.evo-stage-1 { box-shadow: 0 0 0 3px var(--color-evo-stage1); }
+.evo-stage-2 { box-shadow: 0 0 0 3px var(--color-accent), 0 0 8px 2px rgba(240,168,48,0.5); }

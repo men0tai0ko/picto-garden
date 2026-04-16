@@ -12,6 +12,13 @@ import { generatePetFromImage, PET_TYPES, PERSONALITIES, evolvePetImage } from '
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
+/** 進化段階 → CSSクラス名変換（呼び出し元でのクラス付与に使用） */
+function getEvolutionClass(stage) {
+  if (stage >= 2) return 'evo-stage-2';
+  if (stage >= 1) return 'evo-stage-1';
+  return '';
+}
+
 // ===== 起動 =====
 (async () => {
   try {
@@ -226,6 +233,8 @@ async function renderCage() {
     imgEl.onload  = () => URL.revokeObjectURL(blobUrl);
     imgEl.onerror = () => URL.revokeObjectURL(blobUrl);
     imgEl.alt     = pet.type;
+    const evoClass = getEvolutionClass(pet.evolutionStage ?? 0);
+    if (evoClass) imgEl.classList.add(evoClass);
 
     const name = document.createElement('div');
     name.className   = 'cage-card-name';
@@ -343,6 +352,9 @@ function updateCageCard(card, pet, user) {
     imgEl.onload  = () => URL.revokeObjectURL(url);
     imgEl.onerror = () => URL.revokeObjectURL(url);
     imgEl.src = url;
+    imgEl.classList.remove('evo-stage-1', 'evo-stage-2');
+    const evoClass = getEvolutionClass(pet.evolutionStage ?? 0);
+    if (evoClass) imgEl.classList.add(evoClass);
   }
 }
 
@@ -481,7 +493,7 @@ async function renderGarden() {
     const RADIUS  = 16;
     canvas.width  = SIZE;
     canvas.height = SIZE;
-    canvas.className = `garden-pet ${PET_TYPES[pet.typeIndex]?.animClass ?? ''}`;
+    canvas.className = `garden-pet ${PET_TYPES[pet.typeIndex]?.animClass ?? ''} ${getEvolutionClass(pet.evolutionStage ?? 0)}`.trimEnd();
     canvas.setAttribute('role', 'img');
     canvas.setAttribute('aria-label', pet.type);
 
@@ -941,6 +953,8 @@ async function renderBattle() {
 
   // Blob画像をcanvasに描画
   drawPetToCanvas(selectedPet, document.getElementById('battle-pet-canvas'), 56, 10);
+  const battlePetEvoClass = getEvolutionClass(selectedPet.evolutionStage ?? 0);
+  if (battlePetEvoClass) document.getElementById('battle-pet-canvas').classList.add(battlePetEvoClass);
 
   // ペット一覧のBlob画像を設定
   pets.forEach(p => {
@@ -950,6 +964,8 @@ async function renderBattle() {
     imgEl.src = url;
     imgEl.onload  = () => URL.revokeObjectURL(url);
     imgEl.onerror = () => URL.revokeObjectURL(url);
+    const evoClass = getEvolutionClass(p.evolutionStage ?? 0);
+    if (evoClass) imgEl.classList.add(evoClass);
   });
 
   // ペット選択クリック
@@ -1187,7 +1203,11 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
   // ペット画像描画
   const pet = await getPet(battleState.petId);
   if (pet) {
-    drawPetToCanvas(pet, document.getElementById('battle-result-pet-canvas'), 72, 12);
+    const resultCanvas = document.getElementById('battle-result-pet-canvas');
+    drawPetToCanvas(pet, resultCanvas, 72, 12);
+    resultCanvas.classList.remove('evo-stage-1', 'evo-stage-2');
+    const evoClass = getEvolutionClass(pet.evolutionStage ?? 0);
+    if (evoClass) resultCanvas.classList.add(evoClass);
   }
 
   // 停止理由ラベル
