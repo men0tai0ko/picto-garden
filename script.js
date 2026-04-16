@@ -793,7 +793,7 @@ async function renderShop() {
 // ===== T4：訓練画面 =====
 
 /** 訓練画面の状態（選択中難易度・選択中ペット・ログ・敵属性） */
-let battleState = { difficultyId: 'normal', petId: null, log: [], enemyAttribute: null };
+let battleState = { difficultyId: 'normal', petId: null, log: [], enemyAttribute: null, aborted: false, session: null };
 
 async function renderBattle() {
   const screen = document.getElementById('screen-battle');
@@ -942,6 +942,9 @@ async function renderBattle() {
   // 訓練開始
   document.getElementById('battle-start-btn').addEventListener('click', async () => {
     const btn = document.getElementById('battle-start-btn');
+    // 事前ガード（訓練不可状態はボタンdisabledで防ぐが念のため）
+    const petCheck = await getPet(battleState.petId);
+    if (!petCheck || petCheck.hp <= 0 || petCheck.hunger <= 0) return;
     btn.disabled = true;
     btn.textContent = '⚔️ 訓練中...';
     await executeBattle();
@@ -970,56 +973,77 @@ function drawPetToCanvas(pet, canvas, size, radius) {
   img.src = url;
 }
 
-/** バトル実行 → ログ表示 → レベルアップ演出 */
+/** バトル実行 → ループ → 累積結果表示 */
 async function executeBattle() {
   const log = document.getElementById('battle-log');
   log.style.display = 'block';
   log.innerHTML = '';
-  battleState.log = []; // ログリセット
+  battleState.log = [];
+  battleState.aborted = false;
+  battleState.session = { battles: 0, wins: 0, totalExp: 0, totalCurrency: 0 };
 
-  // ログモーダルを開き、appendLogの書き込み先として使う
   const modalLog = showBattleLogModal();
 
-  const result = await runBattle(battleState.petId, battleState.difficultyId, battleState.enemyAttribute);
+  let stopReason = 'hp0'; // 'hp0' | 'hunger0' | 'aborted'
+  let lastResult = null;
 
-  if (!result.ok) {
-    const msg = result.reason === 'HP0'      ? 'HPが0です。餌を与えてから訓練してください。'
-              : result.reason === 'HUNGER0'  ? '空腹度が0です。餌を与えてから訓練してください。'
-              : '訓練できません。';
-    appendLog(log, msg, 'var(--color-hp)');
-    appendLogDOM(modalLog, msg, 'var(--color-hp)');
-    await sleep(1200);
-    closeBattleLogModal();
-    return;
-  }
+  // 連戦ループ
+  let battleCount = 0;
+  while (!battleState.aborted) {
+    // 最新ペットデータで継続判定
+    const petNow = await getPet(battleState.petId);
+    if (!petNow || petNow.hp <= 0)     { stopReason = 'hp0';     break; }
+    if (petNow.hunger <= 0)            { stopReason = 'hunger0'; break; }
 
-  const diffLabel     = DIFFICULTY_LEVELS.find(d => d.id === battleState.difficultyId)?.label ?? '';
-  const affinityLabel = result.affinityMult > 1.0 ? '有利' : result.affinityMult < 1.0 ? '不利' : '等倍';
+    battleCount++;
+    battleState.enemyAttribute = battleState.enemyAttribute ?? pickEnemyAttribute();
 
-  // ヘッダー行（即時表示）
-  appendLog(log, `【${diffLabel}】訓練開始！ 総合力:${result.power} 難易度:${result.difficulty}`);
-  appendLogDOM(modalLog, `【${diffLabel}】訓練開始！ 総合力:${result.power} 難易度:${result.difficulty}`);
-  appendLog(log, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
-  appendLogDOM(modalLog, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
+    // 区切り行
+    const sep = `── 第${battleCount}戦 ──`;
+    appendLog(log, sep, 'var(--color-text-light)');
+    appendLogDOM(modalLog, sep, 'var(--color-text-light)');
 
-  // ターン行を1行ずつ時間差で表示
-  for (const turn of result.turns) {
-    await sleep(LOG_TURN_DELAY_MS);
-    appendLog(log, turn.text, turn.color);
-    appendLogDOM(modalLog, turn.text, turn.color);
-  }
+    const result = await runBattle(battleState.petId, battleState.difficultyId, battleState.enemyAttribute);
+    battleState.enemyAttribute = null; // 次戦で再抽選
 
-  await sleep(LOG_RESULT_DELAY_MS);
+    if (!result.ok) {
+      // runBattle内ガード（念のため）
+      stopReason = result.reason === 'HUNGER0' ? 'hunger0' : 'hp0';
+      break;
+    }
 
-  if (result.won) {
-    appendLog(log, '🎉 勝利！', 'var(--color-main)');
-    appendLogDOM(modalLog, '🎉 勝利！', 'var(--color-main)');
-    appendLog(log, `HP -${result.hpLoss} / EXP +${result.expGained} / 🪙+${result.currencyGained}`);
-    appendLogDOM(modalLog, `HP -${result.hpLoss} / EXP +${result.expGained} / 🪙+${result.currencyGained}`);
-    battleState.enemyAttribute = null;
-    await sleep(LOG_TURN_DELAY_MS);
-    closeBattleLogModal();
-    showBattleResultOverlay(true, result);
+    lastResult = result;
+
+    // ヘッダー行
+    const affinityLabel = result.affinityMult > 1.0 ? '有利' : result.affinityMult < 1.0 ? '不利' : '等倍';
+    appendLog(log, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
+    appendLogDOM(modalLog, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
+
+    // ターン行を1行ずつ時間差で表示
+    for (const turn of result.turns) {
+      if (battleState.aborted) break;
+      await sleep(LOG_TURN_DELAY_MS);
+      appendLog(log, turn.text, turn.color);
+      appendLogDOM(modalLog, turn.text, turn.color);
+    }
+
+    await sleep(LOG_RESULT_DELAY_MS);
+
+    if (result.won) {
+      appendLog(log, `🎉 勝利！ HP-${result.hpLoss} / EXP+${result.expGained} / 🪙+${result.currencyGained}`, 'var(--color-main)');
+      appendLogDOM(modalLog, `🎉 勝利！ HP-${result.hpLoss} / EXP+${result.expGained} / 🪙+${result.currencyGained}`, 'var(--color-main)');
+    } else {
+      appendLog(log, `💀 敗北... HP-${result.hpLoss}`, 'var(--color-hp)');
+      appendLogDOM(modalLog, `💀 敗北... HP-${result.hpLoss}`, 'var(--color-hp)');
+    }
+
+    // session集計
+    battleState.session.battles++;
+    if (result.won) battleState.session.wins++;
+    battleState.session.totalExp      += result.expGained;
+    battleState.session.totalCurrency += result.currencyGained;
+
+    // レベルアップ演出（連戦中も都度表示）
     if (result.leveledUp) {
       await sleep(300);
       showLevelUpOverlay(result.newLevel);
@@ -1032,15 +1056,18 @@ async function executeBattle() {
         await renderGarden();
       }
     }
-  } else {
-    appendLog(log, '💀 敗北...', 'var(--color-hp)');
-    appendLogDOM(modalLog, '💀 敗北...', 'var(--color-hp)');
-    appendLog(log, `HP -${result.hpLoss}`);
-    appendLogDOM(modalLog, `HP -${result.hpLoss}`);
-    battleState.enemyAttribute = null;
-    await sleep(LOG_TURN_DELAY_MS);
-    closeBattleLogModal();
-    showBattleResultOverlay(false, result);
+
+    await sleep(LOG_RESULT_DELAY_MS);
+
+    // HP0で次戦不可になる場合はループ先頭のチェックで検出
+  }
+
+  if (battleState.aborted) stopReason = 'aborted';
+
+  closeBattleLogModal();
+
+  if (lastResult) {
+    showBattleResultOverlay(battleState.session, stopReason, lastResult);
   }
 }
 
@@ -1060,10 +1087,14 @@ function showBattleLogModal() {
       <div class="overlay-card" style="width:min(320px,88vw);max-height:60vh;overflow:hidden;display:flex;flex-direction:column;gap:10px">
         <h3 style="font-size:16px">⚔️ 訓練中...</h3>
         <div id="battle-log-modal-body" style="flex:1;overflow-y:auto;font-size:13px;line-height:2;text-align:left;min-height:80px"></div>
+        <button class="btn-primary" id="battle-abort-btn" style="background:var(--color-hp);padding:8px 20px;font-size:13px">中断</button>
       </div>
     `;
     document.body.appendChild(overlay);
   }
+  document.getElementById('battle-abort-btn').onclick = () => {
+    battleState.aborted = true;
+  };
   const body = document.getElementById('battle-log-modal-body');
   body.innerHTML = '';
   overlay.classList.remove('hidden');
@@ -1101,7 +1132,7 @@ const LOG_RESULT_DELAY_MS = 300;
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ===== 訓練結果オーバーレイ =====
-async function showBattleResultOverlay(won, result) {
+async function showBattleResultOverlay(session, stopReason, lastResult) {
   let overlay = document.getElementById('overlay-battle-result');
   if (!overlay) {
     overlay = document.createElement('div');
@@ -1118,8 +1149,10 @@ async function showBattleResultOverlay(won, result) {
     document.body.appendChild(overlay);
   }
 
-  document.getElementById('battle-result-title').textContent = won ? '🎉 勝利！' : '💀 敗北...';
-  document.getElementById('battle-result-title').style.color = won ? 'var(--color-main)' : 'var(--color-hp)';
+  // タイトル：勝利数/総戦闘数
+  const titleEl = document.getElementById('battle-result-title');
+  titleEl.textContent = `${session.wins}勝 / ${session.battles}戦`;
+  titleEl.style.color = session.wins > 0 ? 'var(--color-main)' : 'var(--color-hp)';
 
   // ペット画像描画
   const pet = await getPet(battleState.petId);
@@ -1127,25 +1160,18 @@ async function showBattleResultOverlay(won, result) {
     drawPetToCanvas(pet, document.getElementById('battle-result-pet-canvas'), 72, 12);
   }
 
-  const body = document.getElementById('battle-result-body');
-  const affinityLabel = result.affinityMult > 1.0 ? '⬆️ 有利' : result.affinityMult < 1.0 ? '⬇️ 不利' : '➡️ 等倍';
-  const affinityColor = result.affinityMult > 1.0 ? 'var(--color-main)' : result.affinityMult < 1.0 ? 'var(--color-hp)' : 'var(--color-text-light)';
-  if (won) {
-    body.innerHTML = `
-      <div style="font-size:12px;color:${affinityColor};margin-bottom:4px">属性相性: ${result.enemyAttribute} ${affinityLabel}</div>
-      ${result.skillActivated ? `<div style="font-size:12px;color:var(--color-mp);margin-bottom:4px">✨ スキル「${result.skillName}」発動</div>` : ''}
-      <div>HP <span style="color:var(--color-hp)">-${result.hpLoss}</span></div>
-      <div>EXP <span style="color:var(--color-main)">+${result.expGained}</span></div>
-      <div>🪙 <span style="color:var(--color-accent)">+${result.currencyGained}</span></div>
-    `;
-  } else {
-    body.innerHTML = `
-      <div style="font-size:12px;color:${affinityColor};margin-bottom:4px">属性相性: ${result.enemyAttribute} ${affinityLabel}</div>
-      ${result.skillActivated ? `<div style="font-size:12px;color:var(--color-mp);margin-bottom:4px">✨ スキル「${result.skillName}」発動</div>` : ''}
-      <div>HP <span style="color:var(--color-hp)">-${result.hpLoss}</span></div>
-      <div style="font-size:12px;color:var(--color-text-light)">報酬なし</div>
-    `;
-  }
+  // 停止理由ラベル
+  const stopLabel = stopReason === 'hp0'     ? '⚠️ HPが0になりました'
+                  : stopReason === 'hunger0' ? '⚠️ 空腹度が0になりました'
+                  : '🛑 中断しました';
+  const stopColor = stopReason === 'aborted' ? 'var(--color-text-light)' : 'var(--color-hp)';
+
+  document.getElementById('battle-result-body').innerHTML = `
+    <div style="font-size:12px;color:${stopColor};margin-bottom:6px">${stopLabel}</div>
+    <div>HP <span style="color:var(--color-hp)">-${lastResult.hpLoss}</span><span style="font-size:11px;color:var(--color-text-light)">（最終戦）</span></div>
+    <div>EXP <span style="color:var(--color-main)">+${session.totalExp}</span></div>
+    <div>🪙 <span style="color:var(--color-accent)">+${session.totalCurrency}</span></div>
+  `;
 
   overlay.classList.remove('hidden');
   document.getElementById('battle-result-ok-btn').onclick = () => {
