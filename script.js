@@ -436,13 +436,66 @@ async function feedPet(pet) {
 }
 
 // ===== T3：ショップ =====
+
+/** ショップ画面の選択中ペットID */
+let shopState = { petId: null };
+
 async function renderShop() {
   const container = document.getElementById('shop-items');
   container.innerHTML = '';
 
   const user  = await getUser();
+  const pets  = await getAllPets();
   const price = 10 * user.level;
 
+  // ペット選択セクション（全所持ペットから選択）
+  if (pets.length === 0) {
+    container.innerHTML = '<p class="placeholder-msg">まずペットを生成しよう！</p>';
+    return;
+  }
+
+  // 選択中ペットの初期値（gardenPetIds優先）
+  if (!shopState.petId || !pets.find(p => p.id === shopState.petId)) {
+    shopState.petId = user.gardenPetIds[0] ?? pets[0].id;
+  }
+  const selectedPet = pets.find(p => p.id === shopState.petId);
+
+  // ペット選択UI
+  const selectSection = document.createElement('div');
+  selectSection.style.cssText = 'margin-bottom:14px;padding:0 0 4px';
+  selectSection.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--color-text-light);margin-bottom:8px;padding:0 16px">対象ペット</div>`;
+
+  const petRow = document.createElement('div');
+  petRow.style.cssText = 'display:flex;gap:10px;overflow-x:auto;padding:0 16px 4px';
+
+  pets.forEach(p => {
+    const item = document.createElement('div');
+    item.style.cssText = `min-width:72px;display:flex;flex-direction:column;align-items:center;gap:4px;
+      cursor:pointer;padding:6px 4px;border-radius:12px;border:2.5px solid ${p.id === shopState.petId ? 'var(--color-main)' : 'transparent'};
+      background:${p.id === shopState.petId ? '#edf7ec' : 'transparent'}`;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 52; canvas.height = 52;
+    canvas.style.cssText = 'border-radius:10px';
+    drawPetToCanvas(p, canvas, 52, 8);
+
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:10px;font-weight:700;text-align:center;color:var(--color-text)';
+    label.textContent = p.type;
+
+    const hpLabel = document.createElement('div');
+    hpLabel.style.cssText = 'font-size:10px;color:var(--color-hp)';
+    hpLabel.textContent = `HP ${p.hp}`;
+
+    item.append(canvas, label, hpLabel);
+    item.addEventListener('click', () => { shopState.petId = p.id; renderShop(); });
+    petRow.appendChild(item);
+  });
+
+  selectSection.appendChild(petRow);
+  container.appendChild(selectSection);
+
+  // ペットフードカード
   const card = document.createElement('div');
   card.className = 'shop-card';
   card.innerHTML = `
@@ -458,27 +511,16 @@ async function renderShop() {
 
   document.getElementById('shop-buy-feed').addEventListener('click', async () => {
     const btn = document.getElementById('shop-buy-feed');
-    // 庭の先頭ペットに給餌（庭にペットがいない場合は選択不可）
-    const u    = await getUser();
-    if (u.gardenPetIds.length === 0) {
-      alert('庭にペットを出してから餌を与えてください');
-      return;
-    }
     btn.disabled = true;
-    const pet = await getPet(u.gardenPetIds[0]);
+    const pet = await getPet(shopState.petId);
     if (!pet) { btn.disabled = false; return; }
 
     const result = await feedPet(pet);
     btn.disabled = false;
-    if (!result.ok) {
-      alert(result.message);
-      return;
-    }
-    // 価格表示・ステータスバー更新
-    const updated = await getUser();
-    const newPrice = 10 * updated.level;
-    document.querySelector('#shop-items .shop-price').textContent = `🪙${newPrice}`;
+    if (!result.ok) { alert(result.message); return; }
+
     await renderStatusBar();
+    await renderShop();
   });
 
   // 無料の水カード（詰み防止：通貨0でもHP+10回復可能）
@@ -497,18 +539,14 @@ async function renderShop() {
 
   document.getElementById('shop-buy-water').addEventListener('click', async () => {
     const btn = document.getElementById('shop-buy-water');
-    const u   = await getUser();
-    if (u.gardenPetIds.length === 0) {
-      alert('庭にペットを出してから使ってください');
-      return;
-    }
     btn.disabled = true;
-    const pet = await getPet(u.gardenPetIds[0]);
+    const pet = await getPet(shopState.petId);
     if (!pet) { btn.disabled = false; return; }
     pet.hp = Math.min(100, pet.hp + 10);
     await savePet(pet);
     btn.disabled = false;
     await renderStatusBar();
+    await renderShop();
   });
 }
 
