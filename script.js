@@ -37,8 +37,9 @@ function initNavigation() {
       switchScreen(target);
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      // 訓練画面を開くたびにペット選択状態を更新
+      // 各画面を開くたびに最新状態で再描画
       if (target === 'battle') renderBattle();
+      if (target === 'shop')   renderShop();
     });
   });
 }
