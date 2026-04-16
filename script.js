@@ -545,6 +545,10 @@ const HUNGER_DECREASE_VAL = 5;
 const IDLE_INCOME_PER_PET = 1;
 const IDLE_INCOME_CAP     = 50;
 
+/** 庭スロット拡張：拡張発生Lv一覧・上限 */
+const GARDEN_SLOT_LEVELS = [10, 20, 30, 40];
+const GARDEN_SLOT_MAX    = 5;
+
 /** 起動時に開始。全ペットの空腹度を定期減算しIndexedDB保存 */
 function startHungerTimer() {
   setInterval(async () => {
@@ -959,6 +963,14 @@ async function executeBattle() {
     if (result.leveledUp) {
       await sleep(300);
       showLevelUpOverlay(result.newLevel);
+      const expanded = await tryExpandGardenSlot(result.newLevel);
+      if (expanded) {
+        await sleep(300);
+        const user = await getUser();
+        showSlotExpandOverlay(user.gardenSlots);
+        await renderCage();
+        await renderGarden();
+      }
     }
   } else {
     appendLog(log, '💀 敗北...', 'var(--color-hp)');
@@ -1053,6 +1065,46 @@ function showLevelUpOverlay(newLevel) {
   overlay.classList.remove('hidden');
 
   document.getElementById('levelup-ok-btn').onclick = () => {
+    overlay.classList.add('hidden');
+  };
+}
+
+// ===== 庭スロット拡張 =====
+
+/**
+ * 新Lvがスロット拡張条件に該当する場合 gardenSlots を+1して保存
+ * @param {number} newLevel
+ * @returns {Promise<boolean>} 拡張したか否か
+ */
+async function tryExpandGardenSlot(newLevel) {
+  if (!GARDEN_SLOT_LEVELS.includes(newLevel)) return false;
+  const user = await getUser();
+  if (user.gardenSlots >= GARDEN_SLOT_MAX) return false;
+  user.gardenSlots = Math.min(GARDEN_SLOT_MAX, user.gardenSlots + 1);
+  await saveUser(user);
+  return true;
+}
+
+/** 庭スロット拡張オーバーレイを表示 */
+function showSlotExpandOverlay(newSlots) {
+  let overlay = document.getElementById('overlay-slot-expand');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'overlay-slot-expand';
+    overlay.className = 'overlay';
+    overlay.innerHTML = `
+      <div class="overlay-card">
+        <h3>🌿 庭が広がった！</h3>
+        <div id="slot-expand-info" style="font-size:28px;font-weight:700;color:var(--color-main)"></div>
+        <p style="font-size:13px;color:var(--color-text-light)">庭に出せるペットが増えました</p>
+        <button class="btn-primary" id="slot-expand-ok-btn">OK</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+  document.getElementById('slot-expand-info').textContent = `最大 ${newSlots} 体`;
+  overlay.classList.remove('hidden');
+  document.getElementById('slot-expand-ok-btn').onclick = () => {
     overlay.classList.add('hidden');
   };
 }
