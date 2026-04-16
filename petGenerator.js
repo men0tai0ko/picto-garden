@@ -323,65 +323,6 @@ function centerOfMass(gray, width, height) {
   return { cx: sumX / (total * width), cy: sumY / (total * height) };
 }
 
-// ===== 進化画像生成 =====
-
-/**
- * 進化後の画像Blobを生成して返す純粋関数（Canvas API加工）
- * stage1: 彩度を上げる（鮮やかに）
- * stage2: 明度上昇＋黄色みをかける（発光風）
- * @param {Blob} imageBlob - 元画像Blob
- * @param {number} stage - 進化後のstage（1 or 2）
- * @returns {Promise<Blob>}
- */
-export function evolvePetImage(imageBlob, stage) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(imageBlob);
-    img.onload = () => {
-      const SIZE = 256;
-      const canvas = document.createElement('canvas');
-      canvas.width  = SIZE;
-      canvas.height = SIZE;
-      const ctx = canvas.getContext('2d');
-
-      // 元画像を正方形クロップして描画
-      const s  = Math.min(img.naturalWidth, img.naturalHeight);
-      const sx = (img.naturalWidth  - s) / 2;
-      const sy = (img.naturalHeight - s) / 2;
-      ctx.drawImage(img, sx, sy, s, s, 0, 0, SIZE, SIZE);
-      URL.revokeObjectURL(url);
-
-      const imgData = ctx.getImageData(0, 0, SIZE, SIZE);
-      const d = imgData.data;
-
-      if (stage === 1) {
-        // stage1: 彩度＋30%（RGBを平均からの距離を拡大）
-        for (let i = 0; i < d.length; i += 4) {
-          const avg = (d[i] + d[i+1] + d[i+2]) / 3;
-          d[i]   = Math.min(255, Math.max(0, avg + (d[i]   - avg) * 1.6));
-          d[i+1] = Math.min(255, Math.max(0, avg + (d[i+1] - avg) * 1.6));
-          d[i+2] = Math.min(255, Math.max(0, avg + (d[i+2] - avg) * 1.6));
-        }
-      } else {
-        // stage2: 明度上昇＋黄色みオーバーレイ
-        for (let i = 0; i < d.length; i += 4) {
-          d[i]   = Math.min(255, d[i]   * 1.3 + 30); // R
-          d[i+1] = Math.min(255, d[i+1] * 1.2 + 20); // G
-          d[i+2] = Math.min(255, d[i+2] * 0.8);       // B（抑制）
-        }
-      }
-
-      ctx.putImageData(imgData, 0, 0);
-      canvas.toBlob(blob => {
-        if (blob) resolve(blob);
-        else reject(new Error('進化画像Blob生成失敗'));
-      }, 'image/png');
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('進化画像読み込み失敗')); };
-    img.src = url;
-  });
-}
-
 // ===== 繁殖 =====
 
 /** 繁殖コスト定数 */
@@ -391,54 +332,13 @@ export const BREED_PET_CAP         = 20; // 所持ペット上限
 export const BREED_STAT_INHERIT    = 0.7; // ステータス継承係数
 
 /**
- * 2体の画像を50%ずつ重ね合わせてBlobを返す
- * @param {Blob} blobA
- * @param {Blob} blobB
- * @returns {Promise<Blob>}
- */
-export function mixPetImages(blobA, blobB) {
-  return new Promise((resolve, reject) => {
-    const SIZE = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width  = SIZE;
-    canvas.height = SIZE;
-    const ctx = canvas.getContext('2d');
-
-    const loadImg = (blob) => new Promise((res, rej) => {
-      const img = new Image();
-      const url = URL.createObjectURL(blob);
-      img.onload  = () => { URL.revokeObjectURL(url); res(img); };
-      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('画像読み込み失敗')); };
-      img.src = url;
-    });
-
-    Promise.all([loadImg(blobA), loadImg(blobB)]).then(([imgA, imgB]) => {
-      // 親A（不透明）
-      const sA = Math.min(imgA.naturalWidth, imgA.naturalHeight);
-      ctx.globalAlpha = 1.0;
-      ctx.drawImage(imgA, (imgA.naturalWidth - sA) / 2, (imgA.naturalHeight - sA) / 2, sA, sA, 0, 0, SIZE, SIZE);
-      // 親B（50%合成）
-      const sB = Math.min(imgB.naturalWidth, imgB.naturalHeight);
-      ctx.globalAlpha = 0.5;
-      ctx.drawImage(imgB, (imgB.naturalWidth - sB) / 2, (imgB.naturalHeight - sB) / 2, sB, sB, 0, 0, SIZE, SIZE);
-      ctx.globalAlpha = 1.0;
-
-      canvas.toBlob(blob => {
-        if (blob) resolve(blob);
-        else reject(new Error('合成画像Blob生成失敗'));
-      }, 'image/png');
-    }).catch(reject);
-  });
-}
-
-/**
  * 2体のペットから子Petオブジェクトを生成する
  * @param {Pet} parentA
  * @param {Pet} parentB
- * @param {Blob} mixedBlob - mixPetImages()で生成済みのBlob
+ * @param {Blob} inheritedBlob - 親どちらかのimageData（50/50で呼び出し元が選択）
  * @returns {Pet}
  */
-export function breedPet(parentA, parentB, mixedBlob) {
+export function breedPet(parentA, parentB, inheritedBlob) {
   // 種族決定：同種→固定、異種→50/50
   const typeIndex = parentA.typeIndex === parentB.typeIndex
     ? parentA.typeIndex
@@ -476,7 +376,7 @@ export function breedPet(parentA, parentB, mixedBlob) {
     skill:            SKILLS[personalityIndex].id,
     attribute,
     rarity,
-    imageData:        mixedBlob,
+    imageData:        inheritedBlob,
     evolutionStage:   0,
   };
 }

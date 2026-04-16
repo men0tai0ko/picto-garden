@@ -8,7 +8,7 @@
  */
 
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
-import { generatePetFromImage, PET_TYPES, PERSONALITIES, evolvePetImage, mixPetImages, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP } from './petGenerator.js';
+import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
@@ -843,11 +843,9 @@ async function feedPet(pet) {
   const power = fresh.hp + fresh.mp + fresh.attack + fresh.defense;
   const nextEvolution = EVOLUTION_THRESHOLDS.find(t => t.stage === currentStage + 1 && power >= t.power);
   if (nextEvolution) {
-    const newStage = nextEvolution.stage;
-    fresh.imageData = await evolvePetImage(fresh.imageData, newStage);
-    fresh.evolutionStage = newStage;
+    fresh.evolutionStage = nextEvolution.stage;
     await savePet(fresh);
-    return { ok: true, evolved: true, evolutionStage: newStage };
+    return { ok: true, evolved: true, evolutionStage: fresh.evolutionStage };
   }
 
   return { ok: true, evolved: false };
@@ -1469,9 +1467,9 @@ async function showBreedOverlay(pets, user) {
       const [pA, pB] = await Promise.all([getPet(selectedIds[0]), getPet(selectedIds[1])]);
       if (!pA || !pB) { btn.disabled = false; btn.textContent = '繁殖！'; return; }
 
-      // 画像合成→子生成→保存
-      const mixedBlob = await mixPetImages(pA.imageData, pB.imageData);
-      const child     = breedPet(pA, pB, mixedBlob);
+      // 親どちらかの画像を50/50で継承→子生成→保存
+      const inheritedBlob = Math.random() < 0.5 ? pA.imageData : pB.imageData;
+      const child          = breedPet(pA, pB, inheritedBlob);
       await registerNewPet(child);
 
       overlay.classList.add('hidden');
