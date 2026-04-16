@@ -24,6 +24,7 @@ import { runBattle, DIFFICULTY_LEVELS } from './battle.js';
     await renderBattle();
     initNavigation();
     initGenerateScreen();
+    startHungerTimer();
   } catch (err) {
     console.error('起動エラー:', err);
   }
@@ -309,18 +310,58 @@ function showPetPanel(pet) {
       <div style="display:flex;gap:4px">${hungerDots}</div>
     </div>
     <div style="margin-top:14px;display:flex;justify-content:center">
-      <span style="font-size:12px;color:var(--color-text-light)">🛒 ショップで餌を購入して与えよう</span>
+      <button class="btn-primary" id="panel-feed-btn" style="padding:10px 28px;font-size:14px">🍖 餌をあげる</button>
     </div>
   `;
 
   panel.classList.remove('hidden');
   panel.classList.add('open');
 
+  document.getElementById('panel-feed-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('panel-feed-btn');
+    btn.disabled = true;
+    const fresh = await getPet(pet.id);
+    if (!fresh) { btn.disabled = false; return; }
+    const result = await feedPet(fresh);
+    if (!result.ok) { alert(result.message); btn.disabled = false; return; }
+    await renderStatusBar();
+    await renderGarden();
+    // 最新データでパネル再描画
+    const updated = await getPet(pet.id);
+    if (updated) showPetPanel(updated);
+  });
 
   document.getElementById('panel-close').onclick = () => {
     panel.classList.remove('open');
     panel.classList.add('hidden');
   };
+}
+
+// ===== 空腹度時間経過減少（tasks.md 改善提案・仕様#8） =====
+
+/** 空腹度減少間隔（ms）・1回の減少量 */
+const HUNGER_INTERVAL_MS  = 5 * 60 * 1000; // 5分
+const HUNGER_DECREASE_VAL = 5;
+
+/** 起動時に開始。全ペットの空腹度を定期減算しIndexedDB保存 */
+function startHungerTimer() {
+  setInterval(async () => {
+    try {
+      const pets = await getAllPets();
+      for (const pet of pets) {
+        if (pet.hunger <= 0) continue;
+        pet.hunger = Math.max(0, pet.hunger - HUNGER_DECREASE_VAL);
+        await savePet(pet);
+      }
+      // 庭パネルが開いていれば表示を更新
+      const panel = document.getElementById('pet-panel');
+      if (panel.classList.contains('open')) {
+        await renderGarden();
+      }
+    } catch (err) {
+      console.error('空腹度タイマーエラー:', err);
+    }
+  }, HUNGER_INTERVAL_MS);
 }
 
 function statBar(label, value, cssClass) {
