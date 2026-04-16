@@ -999,6 +999,11 @@ async function renderBattle() {
     </div>
   `;
 
+  // 選択ペットのステータス表示
+  const canBlock = selectedPet.hp <= 0 ? 'HP0のため訓練不可（餌で回復）'
+                 : selectedPet.hunger <= 0 ? '空腹度0のため訓練不可（餌で回復）'
+                 : null;
+
   // 難易度選択セクション
   const diffHTML = `
     <div style="margin-bottom:14px">
@@ -1024,11 +1029,6 @@ async function renderBattle() {
       </button>
     </div>
   `;
-
-  // 選択ペットのステータス表示
-  const canBlock = selectedPet.hp <= 0 ? 'HP0のため訓練不可（餌で回復）'
-                 : selectedPet.hunger <= 0 ? '空腹度0のため訓練不可（餌で回復）'
-                 : null;
 
   const price = 10 * user.level;
   const statusHTML = `
