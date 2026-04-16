@@ -111,7 +111,7 @@
 | ~~高~~ | ~~renderBattle内pets.forEachのBlobURLをimgEl.onload/onerrorでrevokeObjectURL~~ | ✅実装済み |
 | ~~高~~ | ~~庭パネル「餌をあげる」ボタンに現在価格を表示（🍖 餌 🪙{price}）~~ | ✅実装済み |
 | ~~低~~ | ~~図鑑解放済みcanvasにroundRect角丸クリップを追加（ケージ・庭と統一）~~ | ✅実装済み |
-| 高 | battle-result overlayのOKボタン押下後に`renderBattle()`を呼び出してHP表示を即時更新 | 状態不整合防止 |
-| 中 | 空腹度タイマー発火時にケージ画面が表示中であれば`renderCage()`を呼び出してカード更新 | 表示不整合防止 |
-| 中 | 訓練結果overlayにペット画像（`drawPetToCanvas`）を追加表示 | 結果視認性向上 |
-| 中 | `showEvictDialog`内のcanvasを`drawPetToCanvas`関数で描画（重複コード削除） | 保守性向上 |
+| ~~高~~ | ~~battle-result overlayのOKボタン押下後に`renderBattle()`を呼び出してHP表示を即時更新~~ | ✅不要（OKより前に更新済み） |
+| ~~中~~ | ~~空腹度タイマー発火時にケージ画面が表示中であれば`renderCage()`を呼び出してカード更新~~ | ✅実装済み |
+| ~~中~~ | ~~訓練結果overlayにペット画像（`drawPetToCanvas`）を追加表示~~ | ✅実装済み |
+| ~~中~~ | ~~`showEvictDialog`内のcanvasを`drawPetToCanvas`関数で描画（重複コード削除）~~ | ✅実装済み（元々使用済み） |

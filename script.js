@@ -550,6 +550,11 @@ function startHungerTimer() {
       if (panel.classList.contains('open')) {
         await renderGarden();
       }
+      // ケージ画面が表示中であればカードを更新
+      const cageScreen = document.getElementById('screen-cage');
+      if (cageScreen.classList.contains('active')) {
+        await renderCage();
+      }
     } catch (err) {
       console.error('空腹度タイマーエラー:', err);
     }
@@ -925,7 +930,7 @@ function appendLog(container, text, color = 'var(--color-text)') {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ===== 訓練結果オーバーレイ =====
-function showBattleResultOverlay(won, result) {
+async function showBattleResultOverlay(won, result) {
   let overlay = document.getElementById('overlay-battle-result');
   if (!overlay) {
     overlay = document.createElement('div');
@@ -934,6 +939,7 @@ function showBattleResultOverlay(won, result) {
     overlay.innerHTML = `
       <div class="overlay-card">
         <h3 id="battle-result-title"></h3>
+        <canvas id="battle-result-pet-canvas" width="72" height="72" style="border-radius:12px;margin:4px 0"></canvas>
         <div id="battle-result-body" style="width:100%;text-align:left;font-size:14px;line-height:2"></div>
         <button class="btn-primary" id="battle-result-ok-btn">OK</button>
       </div>
@@ -943,6 +949,12 @@ function showBattleResultOverlay(won, result) {
 
   document.getElementById('battle-result-title').textContent = won ? '🎉 勝利！' : '💀 敗北...';
   document.getElementById('battle-result-title').style.color = won ? 'var(--color-main)' : 'var(--color-hp)';
+
+  // ペット画像描画
+  const pet = await getPet(battleState.petId);
+  if (pet) {
+    drawPetToCanvas(pet, document.getElementById('battle-result-pet-canvas'), 72, 12);
+  }
 
   const body = document.getElementById('battle-result-body');
   if (won) {
