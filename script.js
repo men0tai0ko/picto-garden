@@ -318,8 +318,9 @@ function showPetPanel(pet) {
       <div class="panel-stat-label">空腹度</div>
       <div style="display:flex;gap:4px">${hungerDots}</div>
     </div>
-    <div style="margin-top:14px;display:flex;justify-content:center">
-      <button class="btn-primary" id="panel-feed-btn" style="padding:10px 28px;font-size:14px">🍖 餌をあげる</button>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
+      <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px">🍖 餌をあげる</button>
+      <button class="btn-primary" id="panel-water-btn" style="padding:10px 20px;font-size:14px;background:var(--color-mp)">💧 おみず</button>
     </div>
   `;
 
@@ -335,7 +336,19 @@ function showPetPanel(pet) {
     if (!result.ok) { alert(result.message); btn.disabled = false; return; }
     await renderStatusBar();
     await renderGarden();
-    // 最新データでパネル再描画
+    const updated = await getPet(pet.id);
+    if (updated) showPetPanel(updated);
+  });
+
+  document.getElementById('panel-water-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('panel-water-btn');
+    btn.disabled = true;
+    const fresh = await getPet(pet.id);
+    if (!fresh) { btn.disabled = false; return; }
+    fresh.hp = Math.min(100, fresh.hp + 10);
+    await savePet(fresh);
+    await renderStatusBar();
+    await renderGarden();
     const updated = await getPet(pet.id);
     if (updated) showPetPanel(updated);
   });
@@ -489,65 +502,14 @@ async function feedPet(pet) {
 
 // ===== T3：ショップ =====
 
-/** ショップ画面の選択中ペットID */
-let shopState = { petId: null };
-
 async function renderShop() {
   const container = document.getElementById('shop-items');
   container.innerHTML = '';
 
   const user  = await getUser();
-  const pets  = await getAllPets();
   const price = 10 * user.level;
 
-  // ペット選択セクション（全所持ペットから選択）
-  if (pets.length === 0) {
-    container.innerHTML = '<p class="placeholder-msg">まずペットを生成しよう！</p>';
-    return;
-  }
-
-  // 選択中ペットの初期値（gardenPetIds優先）
-  if (!shopState.petId || !pets.find(p => p.id === shopState.petId)) {
-    shopState.petId = user.gardenPetIds[0] ?? pets[0].id;
-  }
-  const selectedPet = pets.find(p => p.id === shopState.petId);
-
-  // ペット選択UI
-  const selectSection = document.createElement('div');
-  selectSection.style.cssText = 'margin-bottom:14px;padding:0 0 4px';
-  selectSection.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--color-text-light);margin-bottom:8px;padding:0 16px">対象ペット</div>`;
-
-  const petRow = document.createElement('div');
-  petRow.style.cssText = 'display:flex;gap:10px;overflow-x:auto;padding:0 16px 4px';
-
-  pets.forEach(p => {
-    const item = document.createElement('div');
-    item.style.cssText = `min-width:72px;display:flex;flex-direction:column;align-items:center;gap:4px;
-      cursor:pointer;padding:6px 4px;border-radius:12px;border:2.5px solid ${p.id === shopState.petId ? 'var(--color-main)' : 'transparent'};
-      background:${p.id === shopState.petId ? '#edf7ec' : 'transparent'}`;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 52; canvas.height = 52;
-    canvas.style.cssText = 'border-radius:10px';
-    drawPetToCanvas(p, canvas, 52, 8);
-
-    const label = document.createElement('div');
-    label.style.cssText = 'font-size:10px;font-weight:700;text-align:center;color:var(--color-text)';
-    label.textContent = p.type;
-
-    const hpLabel = document.createElement('div');
-    hpLabel.style.cssText = 'font-size:10px;color:var(--color-hp)';
-    hpLabel.textContent = `HP ${p.hp}`;
-
-    item.append(canvas, label, hpLabel);
-    item.addEventListener('click', () => { shopState.petId = p.id; renderShop(); });
-    petRow.appendChild(item);
-  });
-
-  selectSection.appendChild(petRow);
-  container.appendChild(selectSection);
-
-  // ペットフードカード
+  // ペットフード情報カード（給餌は庭パネルから）
   const card = document.createElement('div');
   card.className = 'shop-card';
   card.innerHTML = `
@@ -555,27 +517,13 @@ async function renderShop() {
     <div class="shop-card-info">
       <h3>ペットフード</h3>
       <p>空腹度回復・HP+20・ステータス上昇</p>
+      <p style="font-size:11px;color:var(--color-text-light);margin-top:4px">🏡 庭のペットをタップして給餌</p>
     </div>
     <span class="shop-price">🪙${price}</span>
-    <button class="btn-buy" id="shop-buy-feed">購入</button>
   `;
   container.appendChild(card);
 
-  document.getElementById('shop-buy-feed').addEventListener('click', async () => {
-    const btn = document.getElementById('shop-buy-feed');
-    btn.disabled = true;
-    const pet = await getPet(shopState.petId);
-    if (!pet) { btn.disabled = false; return; }
-
-    const result = await feedPet(pet);
-    btn.disabled = false;
-    if (!result.ok) { alert(result.message); return; }
-
-    await renderStatusBar();
-    await renderShop();
-  });
-
-  // 無料の水カード（詰み防止：通貨0でもHP+10回復可能）
+  // おみず情報カード
   const waterCard = document.createElement('div');
   waterCard.className = 'shop-card';
   waterCard.innerHTML = `
@@ -583,23 +531,11 @@ async function renderShop() {
     <div class="shop-card-info">
       <h3>おみず（無料）</h3>
       <p>HP+10回復。通貨がないときでも使える</p>
+      <p style="font-size:11px;color:var(--color-text-light);margin-top:4px">🏡 庭のペットをタップして給餌</p>
     </div>
     <span class="shop-price">🪙0</span>
-    <button class="btn-buy" id="shop-buy-water">あげる</button>
   `;
   container.appendChild(waterCard);
-
-  document.getElementById('shop-buy-water').addEventListener('click', async () => {
-    const btn = document.getElementById('shop-buy-water');
-    btn.disabled = true;
-    const pet = await getPet(shopState.petId);
-    if (!pet) { btn.disabled = false; return; }
-    pet.hp = Math.min(100, pet.hp + 10);
-    await savePet(pet);
-    btn.disabled = false;
-    await renderStatusBar();
-    await renderShop();
-  });
 }
 
 // ===== T4：訓練画面 =====
