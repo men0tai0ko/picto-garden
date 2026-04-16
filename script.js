@@ -321,10 +321,7 @@ async function renderCage() {
     waterBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       waterBtn.disabled = true;
-      const fresh = await getPet(pet.id);
-      if (!fresh) { waterBtn.disabled = false; return; }
-      fresh.hp = Math.min(100, fresh.hp + 10);
-      await savePet(fresh);
+      await waterPet(pet);
       await renderStatusBar();
       await renderGarden();
       const updated = await getPet(pet.id);
@@ -896,6 +893,18 @@ async function feedPet(pet) {
   return { ok: true, evolved: false };
 }
 
+/**
+ * 水やり処理（HP+10・無料）
+ * @param {Pet} pet
+ * @returns {Promise<void>}
+ */
+async function waterPet(pet) {
+  const fresh = await getPet(pet.id);
+  if (!fresh) return;
+  fresh.hp = Math.min(100, fresh.hp + 10);
+  await savePet(fresh);
+}
+
 // ===== T3：ショップ =====
 
 async function renderShop() {
@@ -1010,6 +1019,9 @@ async function renderBattle() {
         <span>敵の属性: <strong>${enemyAttr}</strong></span>
         <span style="color:${affinityColor};font-weight:700">${affinityLabel}</span>
       </div>
+      <button id="battle-start-btn" class="btn-primary" style="width:100%;margin-top:10px"${canBlock ? ' disabled' : ''}>
+        ⚔️ 訓練開始
+      </button>
     </div>
   `;
 
@@ -1018,6 +1030,7 @@ async function renderBattle() {
                  : selectedPet.hunger <= 0 ? '空腹度0のため訓練不可（餌で回復）'
                  : null;
 
+  const price = 10 * user.level;
   const statusHTML = `
     <div style="background:var(--color-white);border-radius:var(--radius-card);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -1027,19 +1040,23 @@ async function renderBattle() {
           <div style="font-size:11px;color:var(--color-text-light)">${selectedPet.type} / ${selectedPet.personality} / ${selectedPet.attribute}</div>
         </div>
       </div>
-      ${statBar('HP',   selectedPet.hp,      'hp')}
-      ${statBar('MP',   selectedPet.mp,      'mp')}
-      ${statBar('攻撃', selectedPet.attack,  'atk')}
-      ${statBar('防御', selectedPet.defense, 'def')}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
+        ${statBar('HP',   selectedPet.hp,      'hp')}
+        ${statBar('MP',   selectedPet.mp,      'mp')}
+        ${statBar('攻撃', selectedPet.attack,  'atk')}
+        ${statBar('防御', selectedPet.defense, 'def')}
+      </div>
+      ${statBar('満腹度', selectedPet.hunger, 'hunger')}
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button id="battle-feed-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0">🍖 餌 🪙${price}</button>
+        <button id="battle-water-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0;background:var(--color-mp)">💧 水</button>
+      </div>
       ${canBlock ? `<p style="color:var(--color-hp);font-size:12px;margin-top:8px;text-align:center">${canBlock}</p>` : ''}
     </div>
   `;
 
   const hasLog = battleState.log.length > 0;
   area.innerHTML = petSelectHTML + diffHTML + statusHTML + `
-    <button id="battle-start-btn" class="btn-primary" style="width:100%"${canBlock ? ' disabled' : ''}>
-      ⚔️ 訓練開始
-    </button>
     <div id="battle-log" style="margin-top:16px;background:var(--color-white);border-radius:var(--radius-card);padding:14px;box-shadow:var(--shadow);display:${hasLog ? 'block' : 'none'};max-height:200px;overflow-y:auto;font-size:13px;line-height:1.8"></div>
   `;
 
@@ -1070,6 +1087,43 @@ async function renderBattle() {
     imgEl.onerror = () => URL.revokeObjectURL(url);
     const evoClass = getEvolutionClass(p.evolutionStage ?? 0);
     if (evoClass) imgEl.classList.add(evoClass);
+  });
+
+  // 訓練画面：給餌ボタン
+  document.getElementById('battle-feed-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('battle-feed-btn');
+    btn.disabled = true;
+    const fresh = await getPet(battleState.petId);
+    if (!fresh) { btn.disabled = false; return; }
+    const result = await feedPet(fresh);
+    if (!result.ok) { alert(result.message); btn.disabled = false; return; }
+    const updated = await getPet(battleState.petId);
+    const logEl = document.getElementById('battle-log');
+    const scrollTop = logEl ? logEl.scrollTop : 0;
+    await renderBattle();
+    await renderStatusBar();
+    await renderCage();
+    await renderGarden();
+    const logElAfter = document.getElementById('battle-log');
+    if (logElAfter) logElAfter.scrollTop = scrollTop;
+    if (result.evolved && updated) showEvolutionOverlay(updated, result.evolutionStage);
+  });
+
+  // 訓練画面：水あげボタン
+  document.getElementById('battle-water-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('battle-water-btn');
+    btn.disabled = true;
+    const fresh = await getPet(battleState.petId);
+    if (!fresh) { btn.disabled = false; return; }
+    await waterPet(fresh);
+    const logEl = document.getElementById('battle-log');
+    const scrollTop = logEl ? logEl.scrollTop : 0;
+    await renderBattle();
+    await renderStatusBar();
+    await renderCage();
+    await renderGarden();
+    const logElAfter = document.getElementById('battle-log');
+    if (logElAfter) logElAfter.scrollTop = scrollTop;
   });
 
   // ペット選択クリック
