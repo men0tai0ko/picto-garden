@@ -213,7 +213,8 @@ async function renderCage() {
     const imgEl   = document.createElement('img');
     const blobUrl = URL.createObjectURL(pet.imageData);
     imgEl.src     = blobUrl;
-    imgEl.onload  = () => {};
+    imgEl.onload  = () => URL.revokeObjectURL(blobUrl);
+    imgEl.onerror = () => URL.revokeObjectURL(blobUrl);
     imgEl.alt     = pet.type;
 
     const name = document.createElement('div');
@@ -241,7 +242,45 @@ async function renderCage() {
       </div>
     `;
 
-    card.append(imgEl, name, badges, hpBar);
+    // 給餌ボタン（カード内インライン）
+    const feedRow = document.createElement('div');
+    feedRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;width:100%';
+
+    const feedBtn  = document.createElement('button');
+    feedBtn.className = 'btn-buy';
+    feedBtn.style.cssText = 'flex:1;font-size:11px;padding:6px 0';
+    feedBtn.textContent = '🍖 餌';
+
+    const waterBtn = document.createElement('button');
+    waterBtn.className = 'btn-buy';
+    waterBtn.style.cssText = 'flex:1;font-size:11px;padding:6px 0;background:var(--color-mp)';
+    waterBtn.textContent = '💧 水';
+
+    feedRow.append(feedBtn, waterBtn);
+    card.append(imgEl, name, badges, hpBar, feedRow);
+
+    // 給餌ボタン：カードclickイベントへの伝播を止める
+    feedBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      feedBtn.disabled = true;
+      const fresh = await getPet(pet.id);
+      if (!fresh) { feedBtn.disabled = false; return; }
+      const result = await feedPet(fresh);
+      if (!result.ok) { alert(result.message); feedBtn.disabled = false; return; }
+      await renderStatusBar();
+      await renderCage();
+    });
+
+    waterBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      waterBtn.disabled = true;
+      const fresh = await getPet(pet.id);
+      if (!fresh) { waterBtn.disabled = false; return; }
+      fresh.hp = Math.min(100, fresh.hp + 10);
+      await savePet(fresh);
+      await renderStatusBar();
+      await renderCage();
+    });
 
     // 庭への配置トグル
     card.addEventListener('click', async () => {
