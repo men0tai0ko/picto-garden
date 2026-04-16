@@ -16,6 +16,7 @@ import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier
 (async () => {
   try {
     await initDB();
+    await syncGardenSlots();
     await renderStatusBar();
     await renderEncyclopedia();
     await renderCage();
@@ -1070,6 +1071,19 @@ function showLevelUpOverlay(newLevel) {
 }
 
 // ===== 庭スロット拡張 =====
+
+/**
+ * 起動時整合チェック：現在Lvに対応する正しい gardenSlots を保証する
+ * 既存データが拡張条件Lvに達しているがスロットが少ない場合に補正する
+ */
+async function syncGardenSlots() {
+  const user = await getUser();
+  const expected = Math.min(GARDEN_SLOT_MAX, 1 + GARDEN_SLOT_LEVELS.filter(lv => lv <= user.level).length);
+  if (user.gardenSlots < expected) {
+    user.gardenSlots = expected;
+    await saveUser(user);
+  }
+}
 
 /**
  * 新Lvがスロット拡張条件に該当する場合 gardenSlots を+1して保存
