@@ -1,4 +1,7 @@
 # アーキテクチャ architecture.md
+<!-- 正本：モジュール構成・データフロー・永続化・実装制約 -->
+<!-- 数値・計算式 → spec.md -->
+<!-- カラー・レイアウト → ui.md -->
 
 ## 1. 全体構成
 
@@ -24,18 +27,15 @@
 ```
 {
   id: string/number,
-  typeIndex: number,     // encyclopediaFlags・アニメクラスの添字
-  type: string,          // 種類ラベル文字列
+  type: enum('ドラゴン系','鳥類系','野獣系','スライム系','精霊系'),
   level: number,
   hp: number,        // 上限100
   mp: number,        // 上限100
   attack: number,    // 上限100
   defense: number,   // 上限100
   hunger: number,
-  personalityIndex: number, // 成長補正参照用インデックス
-  personality: string,      // 性格ラベル文字列
-  attribute: string, // 火/水/草/闇/光
-  rarity: string,    // 将来拡張
+  personality: enum('勇猛','活発','強靭','堅固','神秘'),
+  rarity: string,
   imageData: Blob    // 元画像
 }
 ```
@@ -47,9 +47,8 @@
   level: number,              // 上限50
   exp: number,                // Lv50後は0固定
   currency: number,           // 初期100
-  pets: string[],             // 所持PetのIDリスト
+  pets: Pet[],
   gardenSlots: number,        // 初期1・最大5
-  gardenPetIds: string[],     // 庭に表示中のPet IDリスト（上限=gardenSlots）
   encyclopediaFlags: boolean[5] // 図鑑解放フラグ（種類順）
 }
 ```
@@ -140,3 +139,21 @@
 |------|---------|
 | HP = 0 | 餌やりでHP+20回復 |
 | 空腹度 = 0 | 餌やりで空腹度回復 |
+
+---
+
+## 9. 実装制約
+
+変更・拡張時に必ず守る制約。
+
+| 制約 | 理由 |
+|------|------|
+| 通貨増減は economy.js 経由のみ | 直接変更すると残高整合性が壊れる |
+| 難易度再計算はレベルアップ確定後に実施 | 同バトル内での数値不整合防止 |
+| 閾値・係数はすべて外部定数として定義 | 後調整を容易にする |
+| petGeneratorの各解析ステップは独立関数 | 差し替え可能な構造を維持する |
+| 属性相性テーブル（AFFINITY_TABLE）はbattle.jsの外部定数 | 変更箇所を一箇所に集約する |
+| 敵属性はbattleStateに保存・バトル終了後nullリセット | 次回表示時に再抽選するため |
+| 庭スロット拡張は起動時 `syncGardenSlots()` で自動補正 | 既存データとの不整合防止 |
+| 属性（fire/water/草/dark/light）はenumで管理 | 将来拡張時の一貫性維持 |
+| gardenSlotsはUserオブジェクトで管理（固定値にしない） | 庭スロット拡張機能の前提 |
