@@ -117,3 +117,21 @@ export async function registerNewPet(pet) {
   await saveUser(user);
   return user;
 }
+
+/**
+ * ペット削除（IndexedDB削除＋User.pets・gardenPetIds同時クリーンアップ）
+ * @param {string} id - 削除するPetのid
+ */
+export async function deletePet(id) {
+  await new Promise((resolve, reject) => {
+    const tx  = db.transaction(STORE_PETS, 'readwrite');
+    const req = tx.objectStore(STORE_PETS).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror   = (e) => reject(e.target.error);
+  });
+
+  const user = await getUser();
+  user.pets          = user.pets.filter(pid => pid !== id);
+  user.gardenPetIds  = user.gardenPetIds.filter(pid => pid !== id);
+  await saveUser(user);
+}

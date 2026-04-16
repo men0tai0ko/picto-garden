@@ -7,7 +7,7 @@
  * T5：報酬ループ（EXP・レベルアップ・レベルアップ演出）
  */
 
-import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
+import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
@@ -213,9 +213,39 @@ function showGeneratedOverlay(pet) {
 }
 
 // ===== ケージ =====
+/** ケージ編集モード（trueのとき削除ボタンを表示） */
+let cageEditMode = false;
+
 async function renderCage() {
   const grid = document.getElementById('cage-grid');
   grid.innerHTML = '';
+
+  // 編集ボタンをscreen-titleの横に配置
+  let titleRow = document.querySelector('#screen-cage .cage-title-row');
+  if (!titleRow) {
+    const screenCage = document.getElementById('screen-cage');
+    const existingTitle = screenCage.querySelector('.screen-title');
+    titleRow = document.createElement('div');
+    titleRow.className = 'cage-title-row';
+    titleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px';
+    const titleEl = document.createElement('h2');
+    titleEl.style.cssText = 'font-size:18px;font-weight:700;color:var(--color-text)';
+    titleEl.textContent = 'ケージ';
+    const editBtn = document.createElement('button');
+    editBtn.id = 'cage-edit-btn';
+    editBtn.style.cssText = 'font-size:12px;font-weight:700;padding:6px 14px;border-radius:var(--radius-btn);border:none;cursor:pointer';
+    titleRow.append(titleEl, editBtn);
+    if (existingTitle) existingTitle.replaceWith(titleRow);
+    else screenCage.insertBefore(titleRow, screenCage.firstChild);
+  }
+  // 編集ボタンのラベル・色を現在モードに合わせて更新
+  const editBtn = document.getElementById('cage-edit-btn');
+  if (editBtn) {
+    editBtn.textContent = cageEditMode ? '✅ 完了' : '✏️ 編集';
+    editBtn.style.background = cageEditMode ? 'var(--color-hp)' : 'var(--color-bg)';
+    editBtn.style.color = cageEditMode ? 'var(--color-white)' : 'var(--color-text)';
+    editBtn.onclick = () => { cageEditMode = !cageEditMode; renderCage(); };
+  }
 
   const user = await getUser();
   const pets = await getAllPets();
@@ -321,6 +351,21 @@ async function renderCage() {
       await saveUser(u);
       await renderGarden();
     });
+
+    // 編集モード時のみ削除ボタンを表示
+    if (cageEditMode) {
+      const inGarden = user.gardenPetIds.includes(pet.id);
+      const releaseBtn = document.createElement('button');
+      releaseBtn.style.cssText = `width:100%;margin-top:6px;padding:6px 0;border-radius:var(--radius-btn);border:none;font-size:11px;font-weight:700;cursor:${inGarden ? 'not-allowed' : 'pointer'};background:${inGarden ? 'var(--color-bg)' : 'rgba(232,84,84,0.12)'};color:${inGarden ? 'var(--color-text-light)' : 'var(--color-hp)'}`;
+      releaseBtn.textContent = inGarden ? '🏡 庭から外してください' : '🌿 野に放つ';
+      releaseBtn.disabled = inGarden;
+      releaseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (inGarden) return;
+        showReleaseConfirmDialog(pet);
+      });
+      card.appendChild(releaseBtn);
+    }
 
     grid.appendChild(card);
   });
@@ -1365,6 +1410,48 @@ function showSlotExpandOverlay(newSlots) {
   overlay.classList.remove('hidden');
   document.getElementById('slot-expand-ok-btn').onclick = () => {
     overlay.classList.add('hidden');
+  };
+}
+
+// ===== ペット削除確認ダイアログ =====
+
+/**
+ * 野に放つ（削除）確認ダイアログを表示
+ * @param {Pet} pet
+ */
+function showReleaseConfirmDialog(pet) {
+  let overlay = document.getElementById('overlay-release-confirm');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'overlay-release-confirm';
+    overlay.className = 'overlay';
+    overlay.innerHTML = `
+      <div class="overlay-card">
+        <h3 style="color:var(--color-hp)">🌿 野に放つ</h3>
+        <canvas id="release-confirm-canvas" width="80" height="80" style="border-radius:14px;margin:4px 0"></canvas>
+        <p id="release-confirm-name" style="font-size:15px;font-weight:700"></p>
+        <p style="font-size:12px;color:var(--color-text-light);text-align:center">この操作は取り消せません。<br>本当に野に放ちますか？</p>
+        <div style="display:flex;gap:8px;width:100%;margin-top:4px">
+          <button class="btn-primary" id="release-confirm-ok" style="flex:1;background:var(--color-hp)">放つ</button>
+          <button class="btn-primary" id="release-confirm-cancel" style="flex:1;background:#aaa">キャンセル</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  document.getElementById('release-confirm-name').textContent = pet.name ?? pet.type;
+  drawPetToCanvas(pet, document.getElementById('release-confirm-canvas'), 80, 14);
+  overlay.classList.remove('hidden');
+
+  document.getElementById('release-confirm-cancel').onclick = () => overlay.classList.add('hidden');
+
+  document.getElementById('release-confirm-ok').onclick = async () => {
+    overlay.classList.add('hidden');
+    await deletePet(pet.id);
+    cageEditMode = false;
+    await renderCage();
+    await renderGarden();
   };
 }
 
