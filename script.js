@@ -464,8 +464,8 @@ async function feedPet(pet) {
   // HP+20回復
   fresh.hp = Math.min(STAT_CAP, fresh.hp + FEED_HP_RESTORE);
 
-  // 全ステータスが上限か判定
-  const allCapped = fresh.mp >= STAT_CAP && fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
+  // 全ステータスが上限か判定（hp含む・spec.md 1.5）
+  const allCapped = fresh.hp >= STAT_CAP && fresh.mp >= STAT_CAP && fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
 
   if (!allCapped) {
     const bonus = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
@@ -477,6 +477,7 @@ async function feedPet(pet) {
       fresh[stat] = Math.min(STAT_CAP, fresh[stat] + gain);
     };
 
+    applyGain('hp');
     applyGain('mp');
     applyGain('attack');
     applyGain('defense');
