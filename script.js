@@ -949,8 +949,9 @@ async function renderBattle() {
     btn.textContent = '⚔️ 訓練中...';
     await executeBattle();
     btn.textContent = '⚔️ 訓練開始';
-    // ペット再取得して再描画
+    // ペット再取得して再描画（ケージも更新してHP/MP変動を反映）
     await renderBattle();
+    await renderCage();
     await renderStatusBar();
   });
 }
