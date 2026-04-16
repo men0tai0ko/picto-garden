@@ -10,7 +10,7 @@
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
-import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
+import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier, SKILL_MP_COST } from './battle.js';
 
 // ===== 起動 =====
 (async () => {
@@ -521,6 +521,7 @@ async function showPetPanel(pet) {
       <div class="panel-badge-personality">${pet.personality}</div>
       <div style="font-size:12px;color:var(--color-text-light)">${pet.attribute} / ${pet.rarity.split(' ')[0]}</div>
     </div>
+    <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${pet.skill ?? '—'}</div>
     ${statBar('HP',    pet.hp,     'hp')}
     ${statBar('MP',    pet.mp,     'mp')}
     ${statBar('攻撃',  pet.attack, 'atk')}
@@ -990,6 +991,9 @@ async function executeBattle() {
   const affinityLabel = result.affinityMult > 1.0 ? '有利' : result.affinityMult < 1.0 ? '不利' : '等倍';
   appendLog(log, `【${diffLabel}】訓練開始！ 総合力:${result.power} 難易度:${result.difficulty}`);
   appendLog(log, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
+  if (result.skillActivated) {
+    appendLog(log, `✨ スキル「${result.skillName}」発動！ MP-${SKILL_MP_COST}`, 'var(--color-mp)');
+  }
 
   await sleep(400);
 
@@ -1062,6 +1066,7 @@ async function showBattleResultOverlay(won, result) {
   if (won) {
     body.innerHTML = `
       <div style="font-size:12px;color:${affinityColor};margin-bottom:4px">属性相性: ${result.enemyAttribute} ${affinityLabel}</div>
+      ${result.skillActivated ? `<div style="font-size:12px;color:var(--color-mp);margin-bottom:4px">✨ スキル「${result.skillName}」発動</div>` : ''}
       <div>HP <span style="color:var(--color-hp)">-${result.hpLoss}</span></div>
       <div>EXP <span style="color:var(--color-main)">+${result.expGained}</span></div>
       <div>🪙 <span style="color:var(--color-accent)">+${result.currencyGained}</span></div>
@@ -1069,6 +1074,7 @@ async function showBattleResultOverlay(won, result) {
   } else {
     body.innerHTML = `
       <div style="font-size:12px;color:${affinityColor};margin-bottom:4px">属性相性: ${result.enemyAttribute} ${affinityLabel}</div>
+      ${result.skillActivated ? `<div style="font-size:12px;color:var(--color-mp);margin-bottom:4px">✨ スキル「${result.skillName}」発動</div>` : ''}
       <div>HP <span style="color:var(--color-hp)">-${result.hpLoss}</span></div>
       <div style="font-size:12px;color:var(--color-text-light)">報酬なし</div>
     `;

@@ -6,6 +6,7 @@
 
 import { getUser, saveUser, getPet, savePet } from './state.js';
 import { earnCurrency } from './economy.js';
+import { SKILLS } from './petGenerator.js';
 
 // ===== 外部定数（tasks.md注意事項：難易度倍率は外部定数） =====
 
@@ -26,6 +27,10 @@ const HP_LOSS_LOSE = 20;
 
 /** 通貨報酬上限（spec.md 5） */
 const REWARD_CURRENCY_CAP = 200;
+
+/** スキル発動確率・MP消費量 */
+const SKILL_ACTIVATE_PROB  = 0.30;
+export const SKILL_MP_COST = 20;
 
 /** レベル上限（spec.md 6） */
 const USER_LEVEL_CAP = 50;
@@ -83,7 +88,16 @@ export async function runBattle(petId, difficultyId, enemyAttribute) {
   const baseDiff       = user.level * 10 + power * 0.5;
   const difficulty     = baseDiff * diff.coeff;
   const affinityMult   = getAffinityMultiplier(pet.attribute, enemyAttribute);
-  const winRate        = Math.min(WIN_RATE_MAX, Math.max(WIN_RATE_MIN, (power / difficulty) * affinityMult));
+
+  // スキル発動判定（MP>0 かつ確率判定）
+  const skill = SKILLS[pet.personalityIndex] ?? SKILLS[4];
+  const skillActivated = pet.mp > 0 && Math.random() < SKILL_ACTIVATE_PROB;
+  const skillBonus     = skillActivated ? skill.winRateBonus : 0;
+  if (skillActivated) {
+    pet.mp = Math.max(0, pet.mp - SKILL_MP_COST);
+  }
+
+  const winRate        = Math.min(WIN_RATE_MAX, Math.max(WIN_RATE_MIN, (power / difficulty) * affinityMult + skillBonus));
   const won            = Math.random() < winRate;
 
   // HP減少
@@ -122,6 +136,8 @@ export async function runBattle(petId, difficultyId, enemyAttribute) {
     power,
     enemyAttribute,
     affinityMult,
+    skillActivated,
+    skillName:       skillActivated ? skill.label : null,
   };
 }
 

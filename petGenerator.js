@@ -24,6 +24,18 @@ export const PERSONALITIES = [
   { id: 'mystic',   label: '神秘', bonus: 'all'     },
 ];
 
+/**
+ * スキル定義（性格indexと1対1対応）
+ * winRateBonus: クランプ前に加算する勝率補正値
+ */
+export const SKILLS = [
+  { id: 'fierce',  label: '猛攻', winRateBonus: 0.15 }, // 0:勇猛
+  { id: 'swift',   label: '俊足', winRateBonus: 0.10 }, // 1:活発
+  { id: 'grit',    label: '不屈', winRateBonus: 0.10 }, // 2:強靭
+  { id: 'barrier', label: '鉄壁', winRateBonus: 0.10 }, // 3:堅固
+  { id: 'oracle',  label: '神託', winRateBonus: 0.12 }, // 4:神秘
+];
+
 /** 属性（平均Hue帯域） */
 export const ATTRIBUTES = ['火', '水', '草', '闇', '光'];
 
@@ -37,13 +49,6 @@ const RARITY_THRESHOLDS = [
   { min: 1500, label: '★★ アンコモン' },
   { min:    0, label: '★ コモン'   },
 ];
-
-/** レア度別初期ステータス上限係数（フォールバック: ×1.0） */
-const RARITY_STAT_MULT = {
-  '★★★ レア':    1.6,
-  '★★ アンコモン': 1.3,
-  '★ コモン':     1.0,
-};
 
 /** 輪郭解析：エッジ密度閾値（輪郭 → 種類） */
 const EDGE_DENSITY_THRESHOLDS = {
@@ -170,29 +175,28 @@ export function analyzeRarity(pixels) {
 
 function buildPetObject({ typeIndex, personality, attribute, rarity, imageBlob }) {
   const id = `pet_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const rarityMult = RARITY_STAT_MULT[rarity] ?? 1.0;
 
   return {
     id,
     typeIndex,                         // encyclopediaFlags配列の添字
     type:        PET_TYPES[typeIndex].label,
     level:       1,
-    hp:          randStat(rarityMult),
-    mp:          randStat(rarityMult),
-    attack:      randStat(rarityMult),
-    defense:     randStat(rarityMult),
+    hp:          randStat(),
+    mp:          randStat(),
+    attack:      randStat(),
+    defense:     randStat(),
     hunger:      100,
     personalityIndex: personality,
     personality: PERSONALITIES[personality].label,
+    skill:       SKILLS[personality].id,  // 性格と1対1対応
     attribute,
     rarity,
     imageData:   imageBlob,            // Blob（IndexedDBに保存）
   };
 }
 
-function randStat(rarityMult = 1.0) {
-  const max = Math.round(INIT_STAT_MAX * rarityMult);
-  return Math.floor(Math.random() * (max - INIT_STAT_MIN + 1)) + INIT_STAT_MIN;
+function randStat() {
+  return Math.floor(Math.random() * (INIT_STAT_MAX - INIT_STAT_MIN + 1)) + INIT_STAT_MIN;
 }
 
 // ===== 画像ユーティリティ =====
