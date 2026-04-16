@@ -268,6 +268,7 @@ async function renderCage() {
       const result = await feedPet(fresh);
       if (!result.ok) { alert(result.message); feedBtn.disabled = false; return; }
       await renderStatusBar();
+      await renderGarden();
       await renderCage();
     });
 
@@ -279,6 +280,7 @@ async function renderCage() {
       fresh.hp = Math.min(100, fresh.hp + 10);
       await savePet(fresh);
       await renderStatusBar();
+      await renderGarden();
       await renderCage();
     });
 
