@@ -3,11 +3,14 @@
  * T1：ペット生成UI・画面遷移・ステータスバー・ケージ表示・図鑑表示
  * T2：庭表示・下部パネル
  * T3：餌システム（ショップUI・餌購入・ステータス上昇）
+ * T4：訓練画面UI・オートバトル
+ * T5：報酬ループ（EXP・レベルアップ・レベルアップ演出）
  */
 
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES } from './petGenerator.js';
 import { spendCurrency } from './economy.js';
+import { runBattle, DIFFICULTY_LEVELS } from './battle.js';
 
 // ===== 起動 =====
 (async () => {
@@ -18,6 +21,7 @@ import { spendCurrency } from './economy.js';
     await renderCage();
     await renderGarden();
     await renderShop();
+    await renderBattle();
     initNavigation();
     initGenerateScreen();
   } catch (err) {
@@ -33,6 +37,8 @@ function initNavigation() {
       switchScreen(target);
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      // 訓練画面を開くたびにペット選択状態を更新
+      if (target === 'battle') renderBattle();
     });
   });
 }
@@ -490,6 +496,228 @@ async function renderShop() {
     document.querySelector('#shop-items .shop-price').textContent = `🪙${newPrice}`;
     await renderStatusBar();
   });
+}
+
+// ===== T4：訓練画面 =====
+
+/** 訓練画面の状態（選択中難易度・選択中ペット） */
+let battleState = { difficultyId: 'normal', petId: null };
+
+async function renderBattle() {
+  const screen = document.getElementById('screen-battle');
+  screen.innerHTML = '<h2 class="screen-title">訓練</h2><div id="battle-area" style="padding:0 16px 24px"></div>';
+
+  const area = document.getElementById('battle-area');
+  const user = await getUser();
+  const pets = await getAllPets();
+
+  // ペットがいない場合
+  if (pets.length === 0) {
+    area.innerHTML = '<p class="placeholder-msg">まずペットを生成しよう！</p>';
+    return;
+  }
+
+  // 選択中ペットの初期値（gardenPetIds優先）
+  if (!battleState.petId || !pets.find(p => p.id === battleState.petId)) {
+    battleState.petId = user.gardenPetIds[0] ?? pets[0].id;
+  }
+
+  const selectedPet = pets.find(p => p.id === battleState.petId) ?? pets[0];
+
+  // ペット選択セクション
+  const petSelectHTML = `
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--color-text-light);margin-bottom:8px">ペット選択</div>
+      <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px">
+        ${pets.map(p => `
+          <div class="cage-card${p.id === battleState.petId ? ' in-garden' : ''}"
+               style="min-width:80px;padding:8px"
+               data-pet-id="${p.id}">
+            <img src="" alt="${p.type}" style="width:56px;height:56px;border-radius:10px;object-fit:cover" data-blob-pet="${p.id}">
+            <div class="cage-card-name" style="font-size:11px">${p.type}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  // 難易度選択セクション
+  const diffHTML = `
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--color-text-light);margin-bottom:8px">難易度</div>
+      <div style="display:flex;gap:8px">
+        ${DIFFICULTY_LEVELS.map(d => `
+          <button class="btn-difficulty${battleState.difficultyId === d.id ? ' active' : ''}"
+                  data-diff="${d.id}"
+                  style="flex:1;padding:10px 4px;border-radius:var(--radius-btn);border:2px solid ${battleState.difficultyId === d.id ? 'var(--color-main)' : '#DDD'};
+                         background:${battleState.difficultyId === d.id ? 'var(--color-main)' : 'var(--color-white)'};
+                         color:${battleState.difficultyId === d.id ? 'var(--color-white)' : 'var(--color-text)'};
+                         font-size:13px;font-weight:700;cursor:pointer">
+            ${d.label}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  // 選択ペットのステータス表示
+  const canBlock = selectedPet.hp <= 0 ? 'HP0のため訓練不可（餌で回復）'
+                 : selectedPet.hunger <= 0 ? '空腹度0のため訓練不可（餌で回復）'
+                 : null;
+
+  const statusHTML = `
+    <div style="background:var(--color-white);border-radius:var(--radius-card);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <canvas id="battle-pet-canvas" width="56" height="56" style="border-radius:10px;flex-shrink:0"></canvas>
+        <div>
+          <div style="font-weight:700;font-size:15px">${selectedPet.type}</div>
+          <div style="font-size:11px;color:var(--color-text-light)">${selectedPet.personality} / ${selectedPet.attribute}</div>
+        </div>
+      </div>
+      ${statBar('HP',   selectedPet.hp,      'hp')}
+      ${statBar('MP',   selectedPet.mp,      'mp')}
+      ${statBar('攻撃', selectedPet.attack,  'atk')}
+      ${statBar('防御', selectedPet.defense, 'def')}
+      ${canBlock ? `<p style="color:var(--color-hp);font-size:12px;margin-top:8px;text-align:center">${canBlock}</p>` : ''}
+    </div>
+  `;
+
+  area.innerHTML = petSelectHTML + diffHTML + statusHTML + `
+    <button id="battle-start-btn" class="btn-primary" style="width:100%"${canBlock ? ' disabled' : ''}>
+      ⚔️ 訓練開始
+    </button>
+    <div id="battle-log" style="margin-top:16px;background:var(--color-white);border-radius:var(--radius-card);padding:14px;box-shadow:var(--shadow);display:none;max-height:200px;overflow-y:auto;font-size:13px;line-height:1.8"></div>
+  `;
+
+  // Blob画像をcanvasに描画
+  drawPetToCanvas(selectedPet, document.getElementById('battle-pet-canvas'), 56, 10);
+
+  // ペット一覧のBlob画像を設定
+  pets.forEach(p => {
+    const imgEl = area.querySelector(`img[data-blob-pet="${p.id}"]`);
+    if (!imgEl) return;
+    const url = URL.createObjectURL(p.imageData);
+    imgEl.src = url;
+    imgEl.onload = () => {};
+  });
+
+  // ペット選択クリック
+  area.querySelectorAll('[data-pet-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      battleState.petId = el.dataset.petId;
+      renderBattle();
+    });
+  });
+
+  // 難易度選択クリック
+  area.querySelectorAll('[data-diff]').forEach(el => {
+    el.addEventListener('click', () => {
+      battleState.difficultyId = el.dataset.diff;
+      renderBattle();
+    });
+  });
+
+  // 訓練開始
+  document.getElementById('battle-start-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('battle-start-btn');
+    btn.disabled = true;
+    btn.textContent = '⚔️ 訓練中...';
+    await executeBattle();
+    btn.textContent = '⚔️ 訓練開始';
+    // ペット再取得して再描画
+    await renderBattle();
+    await renderStatusBar();
+  });
+}
+
+/** ペット画像をcanvasに描画（正方形クロップ・角丸） */
+function drawPetToCanvas(pet, canvas, size, radius) {
+  const url = URL.createObjectURL(pet.imageData);
+  const img = new Image();
+  img.onload = () => {
+    const ctx = canvas.getContext('2d');
+    const s  = Math.min(img.naturalWidth, img.naturalHeight);
+    const sx = (img.naturalWidth  - s) / 2;
+    const sy = (img.naturalHeight - s) / 2;
+    ctx.beginPath();
+    ctx.roundRect(0, 0, size, size, radius);
+    ctx.clip();
+    ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+}
+
+/** バトル実行 → ログ表示 → レベルアップ演出 */
+async function executeBattle() {
+  const log = document.getElementById('battle-log');
+  log.style.display = 'block';
+  log.innerHTML = '';
+
+  const result = await runBattle(battleState.petId, battleState.difficultyId);
+
+  if (!result.ok) {
+    const msg = result.reason === 'HP0'      ? 'HPが0です。餌を与えてから訓練してください。'
+              : result.reason === 'HUNGER0'  ? '空腹度が0です。餌を与えてから訓練してください。'
+              : '訓練できません。';
+    appendLog(log, msg, 'var(--color-hp)');
+    return;
+  }
+
+  const diffLabel = DIFFICULTY_LEVELS.find(d => d.id === battleState.difficultyId)?.label ?? '';
+  appendLog(log, `【${diffLabel}】訓練開始！ 総合力:${result.power} 難易度:${result.difficulty}`);
+  appendLog(log, `勝率 ${result.winRate}%`);
+
+  await sleep(400);
+
+  if (result.won) {
+    appendLog(log, '🎉 勝利！', 'var(--color-main)');
+    appendLog(log, `HP -${result.hpLoss} / EXP +${result.expGained} / 🪙+${result.currencyGained}`);
+    if (result.leveledUp) {
+      await sleep(300);
+      showLevelUpOverlay(result.newLevel);
+    }
+  } else {
+    appendLog(log, '💀 敗北...', 'var(--color-hp)');
+    appendLog(log, `HP -${result.hpLoss}`);
+  }
+}
+
+function appendLog(container, text, color = 'var(--color-text)') {
+  const line = document.createElement('div');
+  line.style.color = color;
+  line.textContent = text;
+  container.appendChild(line);
+  container.scrollTop = container.scrollHeight;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ===== T5：レベルアップ演出オーバーレイ =====
+function showLevelUpOverlay(newLevel) {
+  // 既存overlayを再利用（overlay-generatedと別IDにする）
+  let overlay = document.getElementById('overlay-levelup');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'overlay-levelup';
+    overlay.className = 'overlay';
+    overlay.innerHTML = `
+      <div class="overlay-card">
+        <h3>⬆️ レベルアップ！</h3>
+        <div id="levelup-info" style="font-size:28px;font-weight:700;color:var(--color-main)"></div>
+        <p style="font-size:13px;color:var(--color-text-light)">難易度が上昇しました</p>
+        <button class="btn-primary" id="levelup-ok-btn">OK</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  document.getElementById('levelup-info').textContent = `Lv.${newLevel}`;
+  overlay.classList.remove('hidden');
+
+  document.getElementById('levelup-ok-btn').onclick = () => {
+    overlay.classList.add('hidden');
+  };
 }
 
 // ===== 図鑑 =====
