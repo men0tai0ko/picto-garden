@@ -53,6 +53,29 @@ function switchScreen(name) {
   const panel = document.getElementById('pet-panel');
   panel.classList.remove('open');
   panel.classList.add('hidden');
+  // 生成画面：庭スロット満杯警告
+  if (name === 'generate') renderGenerateWarning();
+}
+
+/** 生成画面の上部に庭スロット満杯警告を表示 */
+async function renderGenerateWarning() {
+  const area = document.getElementById('generate-area');
+  if (!area) return;
+  let warn = document.getElementById('generate-warning');
+  const user = await getUser();
+  const isFull = user.gardenPetIds.length >= user.gardenSlots;
+  if (isFull) {
+    if (!warn) {
+      warn = document.createElement('p');
+      warn.id = 'generate-warning';
+      warn.style.cssText = 'color:var(--color-hp);font-size:12px;text-align:center;background:rgba(232,84,84,0.1);border-radius:8px;padding:8px 12px;margin:0';
+      area.insertBefore(warn, area.firstChild);
+    }
+    warn.textContent = `⚠️ 庭のスロットが満杯です（${user.gardenPetIds.length}/${user.gardenSlots}）。ケージからペットを外してください。`;
+    warn.hidden = false;
+  } else if (warn) {
+    warn.hidden = true;
+  }
 }
 
 // ===== ステータスバー =====
@@ -225,7 +248,8 @@ async function renderCage() {
         card.classList.remove('in-garden');
       } else {
         if (u.gardenPetIds.length >= u.gardenSlots) {
-          alert(`庭に出せるペットは${u.gardenSlots}体までです`);
+          // 庭スロット満杯：追い出すペットを選択させる
+          showEvictDialog(u, pet.id, card);
           return;
         }
         u.gardenPetIds.push(pet.id);
@@ -251,6 +275,70 @@ async function renderCage() {
   grid.appendChild(emptySlot);
 }
 
+/**
+ * 庭スロット満杯時：追い出すペットを選択するオーバーレイを表示
+ * @param {User} user
+ * @param {string} incomingPetId - 庭に入れたいペットID
+ * @param {HTMLElement} incomingCard - 選択カード（クラス更新用）
+ */
+async function showEvictDialog(user, incomingPetId, incomingCard) {
+  // 既存オーバーレイがあれば削除
+  const existing = document.getElementById('evict-overlay');
+  if (existing) existing.remove();
+
+  const allPets = await getAllPets();
+  const gardenPets = user.gardenPetIds.map(id => allPets.find(p => p.id === id)).filter(Boolean);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'evict-overlay';
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="overlay-card" style="width:min(340px,92vw)">
+      <h3 style="font-size:16px">庭がいっぱいです</h3>
+      <p style="font-size:13px;color:var(--color-text-light);margin-top:-6px">外に出すペットを選んでください</p>
+      <div id="evict-pet-list" style="display:flex;flex-direction:column;gap:8px;width:100%"></div>
+      <button class="btn-primary" id="evict-cancel-btn" style="background:#aaa;margin-top:4px">キャンセル</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const list = document.getElementById('evict-pet-list');
+  gardenPets.forEach(pet => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;background:var(--color-bg);border-radius:10px;padding:8px 12px;cursor:pointer';
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 40; canvas.height = 40;
+    canvas.style.cssText = 'border-radius:8px;flex-shrink:0';
+    drawPetToCanvas(pet, canvas, 40, 6);
+
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;font-size:13px;font-weight:700';
+    info.textContent = pet.type;
+
+    const sub = document.createElement('div');
+    sub.style.cssText = 'font-size:10px;color:var(--color-text-light)';
+    sub.textContent = `HP ${pet.hp} / 空腹 ${pet.hunger}`;
+    info.appendChild(sub);
+
+    row.append(canvas, info);
+    row.addEventListener('click', async () => {
+      overlay.remove();
+      // 選択ペットを庭から除き、新ペットを追加
+      const u = await getUser();
+      const idx = u.gardenPetIds.indexOf(pet.id);
+      if (idx >= 0) u.gardenPetIds.splice(idx, 1);
+      u.gardenPetIds.push(incomingPetId);
+      await saveUser(u);
+      await renderCage();
+      await renderGarden();
+    });
+    list.appendChild(row);
+  });
+
+  document.getElementById('evict-cancel-btn').addEventListener('click', () => overlay.remove());
+}
+
 // ===== 庭（T2） =====
 async function renderGarden() {
   const user      = await getUser();
@@ -260,9 +348,28 @@ async function renderGarden() {
 
   if (user.gardenPetIds.length === 0) {
     emptyMsg.hidden = false;
+    // 「ケージへ」ボタンを追加（初回のみ生成）
+    let cageBtn = document.getElementById('garden-go-cage-btn');
+    if (!cageBtn) {
+      cageBtn = document.createElement('button');
+      cageBtn.id        = 'garden-go-cage-btn';
+      cageBtn.className = 'btn-primary';
+      cageBtn.textContent = '🐾 ケージへ';
+      cageBtn.style.cssText = 'position:absolute;bottom:38%;left:50%;transform:translateX(-50%);font-size:13px;padding:10px 24px';
+      cageBtn.addEventListener('click', () => {
+        switchScreen('cage');
+        document.querySelectorAll('.nav-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.screen === 'cage');
+        });
+      });
+      document.getElementById('screen-garden').appendChild(cageBtn);
+    }
+    cageBtn.hidden = false;
     return;
   }
   emptyMsg.hidden = true;
+  const existingBtn = document.getElementById('garden-go-cage-btn');
+  if (existingBtn) existingBtn.hidden = true;
 
   for (const petId of user.gardenPetIds) {
     const pet = await getPet(petId);
@@ -307,24 +414,17 @@ function showPetPanel(pet) {
   const panel  = document.getElementById('pet-panel');
   const content = document.getElementById('panel-content');
 
-  const hungerDots = Array.from({ length: 5 }, (_, i) =>
-    `<span style="font-size:18px">${i < Math.round(pet.hunger / 20) ? '🍖' : '◯'}</span>`
-  ).join('');
-
   content.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <div class="panel-badge-type">${pet.type}</div>
       <div class="panel-badge-personality">${pet.personality}</div>
       <div style="font-size:12px;color:var(--color-text-light)">${pet.attribute} / ${pet.rarity}</div>
     </div>
-    ${statBar('HP',   pet.hp,      'hp')}
-    ${statBar('MP',   pet.mp,      'mp')}
-    ${statBar('攻撃', pet.attack,  'atk')}
-    ${statBar('防御', pet.defense, 'def')}
-    <div class="panel-stat-row">
-      <div class="panel-stat-label">空腹度</div>
-      <div style="display:flex;gap:4px">${hungerDots}</div>
-    </div>
+    ${statBar('HP',    pet.hp,     'hp')}
+    ${statBar('MP',    pet.mp,     'mp')}
+    ${statBar('攻撃',  pet.attack, 'atk')}
+    ${statBar('防御',  pet.defense,'def')}
+    ${statBar('空腹度', pet.hunger, 'hunger')}
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
       <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px">🍖 餌をあげる</button>
       <button class="btn-primary" id="panel-water-btn" style="padding:10px 20px;font-size:14px;background:var(--color-mp)">💧 おみず</button>
@@ -576,14 +676,17 @@ async function renderBattle() {
     <div style="margin-bottom:14px">
       <div style="font-size:13px;font-weight:700;color:var(--color-text-light);margin-bottom:8px">ペット選択</div>
       <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px">
-        ${pets.map(p => `
+        ${pets.map(p => {
+          const warn = p.hp <= 0 ? '⚠️HP0' : p.hunger <= 0 ? '⚠️空腹' : '';
+          return `
           <div class="cage-card${p.id === battleState.petId ? ' in-garden' : ''}"
                style="min-width:80px;padding:8px"
                data-pet-id="${p.id}">
             <img src="" alt="${p.type}" style="width:56px;height:56px;border-radius:10px;object-fit:cover" data-blob-pet="${p.id}">
             <div class="cage-card-name" style="font-size:11px">${p.type}</div>
-          </div>
-        `).join('')}
+            ${warn ? `<div style="font-size:9px;color:var(--color-hp);font-weight:700;text-align:center;margin-top:2px">${warn}</div>` : ''}
+          </div>`;
+        }).join('')}
       </div>
     </div>
   `;
