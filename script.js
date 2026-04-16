@@ -977,6 +977,9 @@ async function executeBattle() {
   log.innerHTML = '';
   battleState.log = []; // ログリセット
 
+  // ログモーダルを開き、appendLogの書き込み先として使う
+  const modalLog = showBattleLogModal();
+
   const result = await runBattle(battleState.petId, battleState.difficultyId, battleState.enemyAttribute);
 
   if (!result.ok) {
@@ -984,23 +987,33 @@ async function executeBattle() {
               : result.reason === 'HUNGER0'  ? '空腹度が0です。餌を与えてから訓練してください。'
               : '訓練できません。';
     appendLog(log, msg, 'var(--color-hp)');
+    appendLogDOM(modalLog, msg, 'var(--color-hp)');
+    await sleep(1200);
+    closeBattleLogModal();
     return;
   }
 
   const diffLabel     = DIFFICULTY_LEVELS.find(d => d.id === battleState.difficultyId)?.label ?? '';
   const affinityLabel = result.affinityMult > 1.0 ? '有利' : result.affinityMult < 1.0 ? '不利' : '等倍';
   appendLog(log, `【${diffLabel}】訓練開始！ 総合力:${result.power} 難易度:${result.difficulty}`);
+  appendLogDOM(modalLog, `【${diffLabel}】訓練開始！ 総合力:${result.power} 難易度:${result.difficulty}`);
   appendLog(log, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
+  appendLogDOM(modalLog, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
   if (result.skillActivated) {
     appendLog(log, `✨ スキル「${result.skillName}」発動！ MP-${SKILL_MP_COST}`, 'var(--color-mp)');
+    appendLogDOM(modalLog, `✨ スキル「${result.skillName}」発動！ MP-${SKILL_MP_COST}`, 'var(--color-mp)');
   }
 
-  await sleep(400);
+  await sleep(600);
 
   if (result.won) {
     appendLog(log, '🎉 勝利！', 'var(--color-main)');
+    appendLogDOM(modalLog, '🎉 勝利！', 'var(--color-main)');
     appendLog(log, `HP -${result.hpLoss} / EXP +${result.expGained} / 🪙+${result.currencyGained}`);
-    battleState.enemyAttribute = null; // 次回表示時に再抽選
+    appendLogDOM(modalLog, `HP -${result.hpLoss} / EXP +${result.expGained} / 🪙+${result.currencyGained}`);
+    battleState.enemyAttribute = null;
+    await sleep(800);
+    closeBattleLogModal();
     showBattleResultOverlay(true, result);
     if (result.leveledUp) {
       await sleep(300);
@@ -1016,10 +1029,46 @@ async function executeBattle() {
     }
   } else {
     appendLog(log, '💀 敗北...', 'var(--color-hp)');
+    appendLogDOM(modalLog, '💀 敗北...', 'var(--color-hp)');
     appendLog(log, `HP -${result.hpLoss}`);
-    battleState.enemyAttribute = null; // 次回表示時に再抽選
+    appendLogDOM(modalLog, `HP -${result.hpLoss}`);
+    battleState.enemyAttribute = null;
+    await sleep(800);
+    closeBattleLogModal();
     showBattleResultOverlay(false, result);
   }
+}
+
+// ===== バトルログモーダル =====
+
+/**
+ * バトルログ表示用モーダルを開き、ログ書き込み先のdivを返す
+ * @returns {HTMLElement} ログ行を追記するdiv
+ */
+function showBattleLogModal() {
+  let overlay = document.getElementById('overlay-battle-log');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'overlay-battle-log';
+    overlay.className = 'overlay';
+    overlay.innerHTML = `
+      <div class="overlay-card" style="width:min(320px,88vw);max-height:60vh;overflow:hidden;display:flex;flex-direction:column;gap:10px">
+        <h3 style="font-size:16px">⚔️ 訓練中...</h3>
+        <div id="battle-log-modal-body" style="flex:1;overflow-y:auto;font-size:13px;line-height:2;text-align:left;min-height:80px"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+  const body = document.getElementById('battle-log-modal-body');
+  body.innerHTML = '';
+  overlay.classList.remove('hidden');
+  return body;
+}
+
+/** バトルログモーダルを閉じる */
+function closeBattleLogModal() {
+  const overlay = document.getElementById('overlay-battle-log');
+  if (overlay) overlay.classList.add('hidden');
 }
 
 function appendLog(container, text, color = 'var(--color-text)') {
@@ -1029,6 +1078,15 @@ function appendLog(container, text, color = 'var(--color-text)') {
   container.appendChild(line);
   container.scrollTop = container.scrollHeight;
   battleState.log.push({ text, color });
+}
+
+/** battleState.logへの保存なし（モーダル専用） */
+function appendLogDOM(container, text, color = 'var(--color-text)') {
+  const line = document.createElement('div');
+  line.style.color = color;
+  line.textContent = text;
+  container.appendChild(line);
+  container.scrollTop = container.scrollHeight;
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
