@@ -410,9 +410,12 @@ async function renderGarden() {
 }
 
 // ===== 下部パネル（庭ペットタップ時） =====
-function showPetPanel(pet) {
+async function showPetPanel(pet) {
   const panel  = document.getElementById('pet-panel');
   const content = document.getElementById('panel-content');
+
+  const user  = await getUser();
+  const price = 10 * user.level;
 
   content.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -426,7 +429,7 @@ function showPetPanel(pet) {
     ${statBar('防御',  pet.defense,'def')}
     ${statBar('空腹度', pet.hunger, 'hunger')}
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
-      <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px">🍖 餌をあげる</button>
+      <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px">🍖 餌 🪙${price}</button>
       <button class="btn-primary" id="panel-water-btn" style="padding:10px 20px;font-size:14px;background:var(--color-mp)">💧 おみず</button>
     </div>
   `;
@@ -761,7 +764,8 @@ async function renderBattle() {
     if (!imgEl) return;
     const url = URL.createObjectURL(p.imageData);
     imgEl.src = url;
-    imgEl.onload = () => {};
+    imgEl.onload  = () => URL.revokeObjectURL(url);
+    imgEl.onerror = () => URL.revokeObjectURL(url);
   });
 
   // ペット選択クリック
@@ -837,6 +841,7 @@ async function executeBattle() {
   if (result.won) {
     appendLog(log, '🎉 勝利！', 'var(--color-main)');
     appendLog(log, `HP -${result.hpLoss} / EXP +${result.expGained} / 🪙+${result.currencyGained}`);
+    showBattleResultOverlay(true, result);
     if (result.leveledUp) {
       await sleep(300);
       showLevelUpOverlay(result.newLevel);
@@ -844,6 +849,7 @@ async function executeBattle() {
   } else {
     appendLog(log, '💀 敗北...', 'var(--color-hp)');
     appendLog(log, `HP -${result.hpLoss}`);
+    showBattleResultOverlay(false, result);
   }
 }
 
@@ -857,6 +863,46 @@ function appendLog(container, text, color = 'var(--color-text)') {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ===== 訓練結果オーバーレイ =====
+function showBattleResultOverlay(won, result) {
+  let overlay = document.getElementById('overlay-battle-result');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'overlay-battle-result';
+    overlay.className = 'overlay';
+    overlay.innerHTML = `
+      <div class="overlay-card">
+        <h3 id="battle-result-title"></h3>
+        <div id="battle-result-body" style="width:100%;text-align:left;font-size:14px;line-height:2"></div>
+        <button class="btn-primary" id="battle-result-ok-btn">OK</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  document.getElementById('battle-result-title').textContent = won ? '🎉 勝利！' : '💀 敗北...';
+  document.getElementById('battle-result-title').style.color = won ? 'var(--color-main)' : 'var(--color-hp)';
+
+  const body = document.getElementById('battle-result-body');
+  if (won) {
+    body.innerHTML = `
+      <div>HP <span style="color:var(--color-hp)">-${result.hpLoss}</span></div>
+      <div>EXP <span style="color:var(--color-main)">+${result.expGained}</span></div>
+      <div>🪙 <span style="color:var(--color-accent)">+${result.currencyGained}</span></div>
+    `;
+  } else {
+    body.innerHTML = `
+      <div>HP <span style="color:var(--color-hp)">-${result.hpLoss}</span></div>
+      <div style="font-size:12px;color:var(--color-text-light)">報酬なし</div>
+    `;
+  }
+
+  overlay.classList.remove('hidden');
+  document.getElementById('battle-result-ok-btn').onclick = () => {
+    overlay.classList.add('hidden');
+  };
+}
 
 // ===== T5：レベルアップ演出オーバーレイ =====
 function showLevelUpOverlay(newLevel) {
