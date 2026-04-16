@@ -8,7 +8,7 @@
  */
 
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
-import { generatePetFromImage, PET_TYPES, PERSONALITIES } from './petGenerator.js';
+import { generatePetFromImage, PET_TYPES, PERSONALITIES, evolvePetImage } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
@@ -275,6 +275,7 @@ async function renderCage() {
       await renderGarden();
       const updated = await getPet(pet.id);
       if (updated) updateCageCard(card, updated, user);
+      if (result.evolved) showEvolutionOverlay(updated ?? fresh, result.evolutionStage);
       feedBtn.disabled = false;
     });
 
@@ -547,6 +548,7 @@ async function showPetPanel(pet) {
     await renderGarden();
     const updated = await getPet(pet.id);
     if (updated) showPetPanel(updated);
+    if (result.evolved) showEvolutionOverlay(updated ?? fresh, result.evolutionStage);
   });
 
   document.getElementById('panel-water-btn').addEventListener('click', async () => {
@@ -682,6 +684,12 @@ const FEED_HP_RESTORE = 20;
 /** ステータス上限 */
 const STAT_CAP = 100;
 
+/** 進化閾値（総合力 = HP+MP+ATK+DEF） */
+const EVOLUTION_THRESHOLDS = [
+  { stage: 1, power: 100 },
+  { stage: 2, power: 300 },
+];
+
 /**
  * 1ステータスの上昇量を計算（確率減衰・性格補正適用）
  * @param {number} current - 現在値
@@ -749,7 +757,20 @@ async function feedPet(pet) {
   }
 
   await savePet(fresh);
-  return { ok: true };
+
+  // 進化チェック（既存データにevolutionStageがない場合は0扱い）
+  const currentStage = fresh.evolutionStage ?? 0;
+  const power = fresh.hp + fresh.mp + fresh.attack + fresh.defense;
+  const nextEvolution = EVOLUTION_THRESHOLDS.find(t => t.stage === currentStage + 1 && power >= t.power);
+  if (nextEvolution) {
+    const newStage = nextEvolution.stage;
+    fresh.imageData = await evolvePetImage(fresh.imageData, newStage);
+    fresh.evolutionStage = newStage;
+    await savePet(fresh);
+    return { ok: true, evolved: true, evolutionStage: newStage };
+  }
+
+  return { ok: true, evolved: false };
 }
 
 // ===== T3：ショップ =====
@@ -1258,6 +1279,37 @@ function showSlotExpandOverlay(newSlots) {
   document.getElementById('slot-expand-ok-btn').onclick = () => {
     overlay.classList.add('hidden');
   };
+}
+
+// ===== 進化演出オーバーレイ =====
+
+/**
+ * 進化演出オーバーレイを表示
+ * @param {Pet} pet - 進化後のPet（imageDataは進化済みBlob）
+ * @param {number} stage - 進化後stage（1 or 2）
+ */
+function showEvolutionOverlay(pet, stage) {
+  let overlay = document.getElementById('overlay-evolution');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'overlay-evolution';
+    overlay.className = 'overlay';
+    overlay.innerHTML = `
+      <div class="overlay-card">
+        <h3 id="evolution-title"></h3>
+        <canvas id="evolution-pet-canvas" width="100" height="100" style="border-radius:18px;margin:4px 0"></canvas>
+        <div id="evolution-body" style="font-size:13px;color:var(--color-text-light)"></div>
+        <button class="btn-primary" id="evolution-ok-btn">OK</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  document.getElementById('evolution-title').textContent = stage === 1 ? '✨ 進化した！' : '🌟 さらに進化した！';
+  document.getElementById('evolution-body').textContent  = stage === 1 ? '見た目が鮮やかになった！' : '神々しく輝いている！';
+  drawPetToCanvas(pet, document.getElementById('evolution-pet-canvas'), 100, 18);
+  overlay.classList.remove('hidden');
+  document.getElementById('evolution-ok-btn').onclick = () => overlay.classList.add('hidden');
 }
 
 // ===== 図鑑 =====
