@@ -9,7 +9,7 @@
 
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES } from './petGenerator.js';
-import { spendCurrency } from './economy.js';
+import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
 // ===== 起動 =====
@@ -541,6 +541,10 @@ async function showPetPanel(pet) {
 const HUNGER_INTERVAL_MS  = 5 * 60 * 1000; // 5分
 const HUNGER_DECREASE_VAL = 5;
 
+/** 放置収益：ペット1体あたりの基本係数・1回あたり上限 */
+const IDLE_INCOME_PER_PET = 1;
+const IDLE_INCOME_CAP     = 50;
+
 /** 起動時に開始。全ペットの空腹度を定期減算しIndexedDB保存 */
 function startHungerTimer() {
   setInterval(async () => {
@@ -551,6 +555,21 @@ function startHungerTimer() {
         pet.hunger = Math.max(0, pet.hunger - HUNGER_DECREASE_VAL);
         await savePet(pet);
       }
+
+      // ===== 放置収益 =====
+      const user = await getUser();
+      // 庭在中かつ空腹度 > 0 のペット数をカウント
+      const activeCount = user.gardenPetIds.filter(id => {
+        const pet = pets.find(p => p.id === id);
+        return pet && pet.hunger > 0;
+      }).length;
+      if (activeCount > 0) {
+        const gain = Math.min(IDLE_INCOME_CAP, activeCount * user.level * IDLE_INCOME_PER_PET);
+        await earnCurrency(gain);
+        await renderStatusBar();
+      }
+      // ====================
+
       // 庭パネルが開いていれば表示を更新
       const panel = document.getElementById('pet-panel');
       if (panel.classList.contains('open')) {
