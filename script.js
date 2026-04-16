@@ -336,6 +336,14 @@ function updateCageCard(card, pet, user) {
   // 給餌ボタン価格も更新
   const feedBtn = card.querySelector('[data-cage-feedbtn]');
   if (feedBtn) feedBtn.textContent = `🍖 餌 🪙${10 * user.level}`;
+  // ペット画像を進化後BlobURLで更新
+  const imgEl = card.querySelector('img');
+  if (imgEl && pet.imageData) {
+    const url = URL.createObjectURL(pet.imageData);
+    imgEl.onload  = () => URL.revokeObjectURL(url);
+    imgEl.onerror = () => URL.revokeObjectURL(url);
+    imgEl.src = url;
+  }
 }
 
 /** ケージカード用ステータスバーHTML生成（width クランプ済み） */
