@@ -10,7 +10,7 @@
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
-import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier, SKILL_MP_COST } from './battle.js';
+import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
 // ===== 起動 =====
 (async () => {
@@ -995,16 +995,21 @@ async function executeBattle() {
 
   const diffLabel     = DIFFICULTY_LEVELS.find(d => d.id === battleState.difficultyId)?.label ?? '';
   const affinityLabel = result.affinityMult > 1.0 ? '有利' : result.affinityMult < 1.0 ? '不利' : '等倍';
+
+  // ヘッダー行（即時表示）
   appendLog(log, `【${diffLabel}】訓練開始！ 総合力:${result.power} 難易度:${result.difficulty}`);
   appendLogDOM(modalLog, `【${diffLabel}】訓練開始！ 総合力:${result.power} 難易度:${result.difficulty}`);
   appendLog(log, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
   appendLogDOM(modalLog, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
-  if (result.skillActivated) {
-    appendLog(log, `✨ スキル「${result.skillName}」発動！ MP-${SKILL_MP_COST}`, 'var(--color-mp)');
-    appendLogDOM(modalLog, `✨ スキル「${result.skillName}」発動！ MP-${SKILL_MP_COST}`, 'var(--color-mp)');
+
+  // ターン行を1行ずつ時間差で表示
+  for (const turn of result.turns) {
+    await sleep(LOG_TURN_DELAY_MS);
+    appendLog(log, turn.text, turn.color);
+    appendLogDOM(modalLog, turn.text, turn.color);
   }
 
-  await sleep(600);
+  await sleep(LOG_RESULT_DELAY_MS);
 
   if (result.won) {
     appendLog(log, '🎉 勝利！', 'var(--color-main)');
@@ -1012,7 +1017,7 @@ async function executeBattle() {
     appendLog(log, `HP -${result.hpLoss} / EXP +${result.expGained} / 🪙+${result.currencyGained}`);
     appendLogDOM(modalLog, `HP -${result.hpLoss} / EXP +${result.expGained} / 🪙+${result.currencyGained}`);
     battleState.enemyAttribute = null;
-    await sleep(800);
+    await sleep(LOG_TURN_DELAY_MS);
     closeBattleLogModal();
     showBattleResultOverlay(true, result);
     if (result.leveledUp) {
@@ -1033,7 +1038,7 @@ async function executeBattle() {
     appendLog(log, `HP -${result.hpLoss}`);
     appendLogDOM(modalLog, `HP -${result.hpLoss}`);
     battleState.enemyAttribute = null;
-    await sleep(800);
+    await sleep(LOG_TURN_DELAY_MS);
     closeBattleLogModal();
     showBattleResultOverlay(false, result);
   }
@@ -1088,6 +1093,10 @@ function appendLogDOM(container, text, color = 'var(--color-text)') {
   container.appendChild(line);
   container.scrollTop = container.scrollHeight;
 }
+
+/** ターン行待機・結果行待機（ms） */
+const LOG_TURN_DELAY_MS   = 600;
+const LOG_RESULT_DELAY_MS = 300;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 

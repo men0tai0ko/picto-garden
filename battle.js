@@ -35,6 +35,11 @@ export const SKILL_MP_COST = 20;
 /** レベル上限（spec.md 6） */
 const USER_LEVEL_CAP = 50;
 
+/** ターン演出定数（spec.md 4.3） */
+const TURN_COUNT     = 3;
+const TURN_MISS_PROB = 0.20;
+const TURN_CRIT_PROB = 0.20;
+
 // ===== 属性相性（S拡張：属性相性） =====
 
 /** 敵属性候補（petGenerator.js ATTRIBUTES と同順） */
@@ -138,7 +143,47 @@ export async function runBattle(petId, difficultyId, enemyAttribute) {
     affinityMult,
     skillActivated,
     skillName:       skillActivated ? skill.label : null,
+    turns:           buildTurns(won, skillActivated, skill.label),
   };
+}
+
+// ===== ターン演出ログ生成 =====
+
+/**
+ * 表示用ターンログ配列を生成（演出専用・勝敗計算に影響しない）
+ * @param {boolean} won
+ * @param {boolean} skillActivated
+ * @param {string} skillLabel
+ * @returns {{ text: string, color: string }[]}
+ */
+function buildTurns(won, skillActivated, skillLabel) {
+  const turns = [];
+
+  for (let i = 0; i < TURN_COUNT; i++) {
+    // スキル発動は最初のターンに1回だけ挿入
+    if (i === 0 && skillActivated) {
+      turns.push({ text: `✨ スキル「${skillLabel}」発動！`, color: 'var(--color-mp)' });
+      continue;
+    }
+
+    const isMiss = Math.random() < TURN_MISS_PROB;
+    const isCrit = !isMiss && Math.random() < TURN_CRIT_PROB;
+
+    if (isMiss) {
+      turns.push({ text: '💨 攻撃がかわされた！', color: 'var(--color-text-light)' });
+    } else if (isCrit) {
+      turns.push({ text: '💥 会心の一撃！', color: 'var(--color-accent)' });
+    } else {
+      // 奇数ターン: 攻撃、偶数ターン: 被弾
+      if (i % 2 === 0) {
+        turns.push({ text: '⚔️ 攻撃！ 敵に一撃を入れた', color: 'var(--color-text)' });
+      } else {
+        turns.push({ text: '🛡️ 敵の反撃を受けた', color: 'var(--color-text)' });
+      }
+    }
+  }
+
+  return turns;
 }
 
 // ===== T5：EXP・レベルアップ =====
