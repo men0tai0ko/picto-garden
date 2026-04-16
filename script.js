@@ -1016,6 +1016,9 @@ async function renderEncyclopedia() {
         const url = URL.createObjectURL(matchPet.imageData);
         img.onload = () => {
           const ctx = canvas.getContext('2d');
+          ctx.beginPath();
+          ctx.roundRect(0, 0, 56, 56, 12);
+          ctx.clip();
           ctx.drawImage(img, 0, 0, 56, 56);
           URL.revokeObjectURL(url);
         };
