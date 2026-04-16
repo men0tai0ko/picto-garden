@@ -232,13 +232,27 @@ async function renderCage() {
     const hpBar = document.createElement('div');
     hpBar.style.cssText = 'width:100%;margin-top:4px';
     hpBar.innerHTML = `
-      <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">HP ${pet.hp}/100</div>
-      <div class="stat-bar-wrap" style="height:6px">
-        <div class="stat-bar hp" style="width:${pet.hp}%"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px">
+        <div>
+          <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">HP ${pet.hp}</div>
+          <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hp" style="width:${pet.hp}%"></div></div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">MP ${pet.mp}</div>
+          <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar mp" style="width:${pet.mp}%"></div></div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">攻撃 ${pet.attack}</div>
+          <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar atk" style="width:${pet.attack}%"></div></div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">防御 ${pet.defense}</div>
+          <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar def" style="width:${pet.defense}%"></div></div>
+        </div>
       </div>
-      <div style="font-size:9px;color:var(--color-text-light);margin:3px 0 2px">空腹 ${pet.hunger}/100</div>
-      <div class="stat-bar-wrap" style="height:6px">
-        <div class="stat-bar hunger" style="width:${pet.hunger}%"></div>
+      <div style="margin-top:4px">
+        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">空腹 ${pet.hunger}</div>
+        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hunger" style="width:${pet.hunger}%"></div></div>
       </div>
     `;
 
@@ -246,10 +260,11 @@ async function renderCage() {
     const feedRow = document.createElement('div');
     feedRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;width:100%';
 
+    const price   = 10 * user.level;
     const feedBtn  = document.createElement('button');
     feedBtn.className = 'btn-buy';
     feedBtn.style.cssText = 'flex:1;font-size:11px;padding:6px 0';
-    feedBtn.textContent = '🍖 餌';
+    feedBtn.textContent = `🍖 餌 🪙${price}`;
 
     const waterBtn = document.createElement('button');
     waterBtn.className = 'btn-buy';
