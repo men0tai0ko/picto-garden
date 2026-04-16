@@ -116,6 +116,13 @@ function initGenerateScreen() {
       await renderEncyclopedia();
       await renderCage();
 
+      // 生成成功後にselectedFileをクリアしUIを初期化（連打防止）
+      selectedFile         = null;
+      imageInput.value     = '';
+      previewWrap.hidden   = true;
+      generateBtn.hidden   = true;
+      resultArea.hidden    = true;
+
       // 生成完了オーバーレイ表示
       showGeneratedOverlay(pet);
 
