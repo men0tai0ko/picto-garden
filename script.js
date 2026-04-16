@@ -10,7 +10,7 @@
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES } from './petGenerator.js';
 import { spendCurrency } from './economy.js';
-import { runBattle, DIFFICULTY_LEVELS } from './battle.js';
+import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
 // ===== 起動 =====
 (async () => {
@@ -730,8 +730,8 @@ async function renderShop() {
 
 // ===== T4：訓練画面 =====
 
-/** 訓練画面の状態（選択中難易度・選択中ペット・ログ） */
-let battleState = { difficultyId: 'normal', petId: null, log: [] };
+/** 訓練画面の状態（選択中難易度・選択中ペット・ログ・敵属性） */
+let battleState = { difficultyId: 'normal', petId: null, log: [], enemyAttribute: null };
 
 async function renderBattle() {
   const screen = document.getElementById('screen-battle');
@@ -753,6 +753,15 @@ async function renderBattle() {
   }
 
   const selectedPet = pets.find(p => p.id === battleState.petId) ?? pets[0];
+
+  // 敵属性：未抽選時のみ抽選（画面表示ごとに1回・難易度変更では再抽選しない）
+  if (!battleState.enemyAttribute) {
+    battleState.enemyAttribute = pickEnemyAttribute();
+  }
+  const enemyAttr    = battleState.enemyAttribute;
+  const affinityMult = getAffinityMultiplier(selectedPet.attribute, enemyAttr);
+  const affinityLabel = affinityMult > 1.0 ? '⬆️ 有利' : affinityMult < 1.0 ? '⬇️ 不利' : '➡️ 等倍';
+  const affinityColor = affinityMult > 1.0 ? 'var(--color-main)' : affinityMult < 1.0 ? 'var(--color-hp)' : 'var(--color-text-light)';
 
   // ペット選択セクション
   const petSelectHTML = `
@@ -789,6 +798,10 @@ async function renderBattle() {
             ${d.label}
           </button>
         `).join('')}
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--color-text-light);display:flex;align-items:center;gap:6px">
+        <span>敵の属性: <strong>${enemyAttr}</strong></span>
+        <span style="color:${affinityColor};font-weight:700">${affinityLabel}</span>
       </div>
     </div>
   `;
@@ -902,7 +915,7 @@ async function executeBattle() {
   log.innerHTML = '';
   battleState.log = []; // ログリセット
 
-  const result = await runBattle(battleState.petId, battleState.difficultyId);
+  const result = await runBattle(battleState.petId, battleState.difficultyId, battleState.enemyAttribute);
 
   if (!result.ok) {
     const msg = result.reason === 'HP0'      ? 'HPが0です。餌を与えてから訓練してください。'
@@ -912,15 +925,17 @@ async function executeBattle() {
     return;
   }
 
-  const diffLabel = DIFFICULTY_LEVELS.find(d => d.id === battleState.difficultyId)?.label ?? '';
+  const diffLabel     = DIFFICULTY_LEVELS.find(d => d.id === battleState.difficultyId)?.label ?? '';
+  const affinityLabel = result.affinityMult > 1.0 ? '有利' : result.affinityMult < 1.0 ? '不利' : '等倍';
   appendLog(log, `【${diffLabel}】訓練開始！ 総合力:${result.power} 難易度:${result.difficulty}`);
-  appendLog(log, `勝率 ${result.winRate}%`);
+  appendLog(log, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
 
   await sleep(400);
 
   if (result.won) {
     appendLog(log, '🎉 勝利！', 'var(--color-main)');
     appendLog(log, `HP -${result.hpLoss} / EXP +${result.expGained} / 🪙+${result.currencyGained}`);
+    battleState.enemyAttribute = null; // 次回表示時に再抽選
     showBattleResultOverlay(true, result);
     if (result.leveledUp) {
       await sleep(300);
@@ -929,6 +944,7 @@ async function executeBattle() {
   } else {
     appendLog(log, '💀 敗北...', 'var(--color-hp)');
     appendLog(log, `HP -${result.hpLoss}`);
+    battleState.enemyAttribute = null; // 次回表示時に再抽選
     showBattleResultOverlay(false, result);
   }
 }
@@ -972,14 +988,18 @@ async function showBattleResultOverlay(won, result) {
   }
 
   const body = document.getElementById('battle-result-body');
+  const affinityLabel = result.affinityMult > 1.0 ? '⬆️ 有利' : result.affinityMult < 1.0 ? '⬇️ 不利' : '➡️ 等倍';
+  const affinityColor = result.affinityMult > 1.0 ? 'var(--color-main)' : result.affinityMult < 1.0 ? 'var(--color-hp)' : 'var(--color-text-light)';
   if (won) {
     body.innerHTML = `
+      <div style="font-size:12px;color:${affinityColor};margin-bottom:4px">属性相性: ${result.enemyAttribute} ${affinityLabel}</div>
       <div>HP <span style="color:var(--color-hp)">-${result.hpLoss}</span></div>
       <div>EXP <span style="color:var(--color-main)">+${result.expGained}</span></div>
       <div>🪙 <span style="color:var(--color-accent)">+${result.currencyGained}</span></div>
     `;
   } else {
     body.innerHTML = `
+      <div style="font-size:12px;color:${affinityColor};margin-bottom:4px">属性相性: ${result.enemyAttribute} ${affinityLabel}</div>
       <div>HP <span style="color:var(--color-hp)">-${result.hpLoss}</span></div>
       <div style="font-size:12px;color:var(--color-text-light)">報酬なし</div>
     `;

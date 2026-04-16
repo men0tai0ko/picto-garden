@@ -30,15 +30,45 @@ const REWARD_CURRENCY_CAP = 200;
 /** レベル上限（spec.md 6） */
 const USER_LEVEL_CAP = 50;
 
+// ===== 属性相性（S拡張：属性相性） =====
+
+/** 敵属性候補（petGenerator.js ATTRIBUTES と同順） */
+export const ENEMY_ATTRIBUTES = ['火', '水', '草', '闇', '光'];
+
+/** 属性相性乗数テーブル（攻撃側 → 敵側 → 乗数） */
+const AFFINITY_TABLE = {
+  '火': { '火': 1.0, '水': 0.8, '草': 1.2, '闇': 1.0, '光': 1.0 },
+  '水': { '火': 1.2, '水': 1.0, '草': 0.8, '闇': 1.0, '光': 1.0 },
+  '草': { '火': 0.8, '水': 1.2, '草': 1.0, '闇': 1.0, '光': 1.0 },
+  '闇': { '火': 1.0, '水': 1.0, '草': 1.0, '闇': 1.0, '光': 0.8 },
+  '光': { '火': 1.0, '水': 1.0, '草': 1.0, '闇': 1.2, '光': 1.0 },
+};
+
+/** 敵属性をランダムに1件返す純粋関数 */
+export function pickEnemyAttribute() {
+  return ENEMY_ATTRIBUTES[Math.floor(Math.random() * ENEMY_ATTRIBUTES.length)];
+}
+
+/**
+ * 属性相性乗数を返す純粋関数
+ * @param {string} petAttr - 自ペット属性
+ * @param {string} enemyAttr - 敵属性
+ * @returns {number} 乗数（フォールバック: 1.0）
+ */
+export function getAffinityMultiplier(petAttr, enemyAttr) {
+  return AFFINITY_TABLE[petAttr]?.[enemyAttr] ?? 1.0;
+}
+
 // ===== メインバトル関数 =====
 
 /**
  * バトル実行
  * @param {string} petId
  * @param {'easy'|'normal'|'hard'} difficultyId
+ * @param {string} enemyAttribute - 敵属性（pickEnemyAttribute()で事前抽選済み）
  * @returns {Promise<BattleResult>}
  */
-export async function runBattle(petId, difficultyId) {
+export async function runBattle(petId, difficultyId, enemyAttribute) {
   const pet  = await getPet(petId);
   const user = await getUser();
 
@@ -48,12 +78,13 @@ export async function runBattle(petId, difficultyId) {
 
   const diff = DIFFICULTY_LEVELS.find(d => d.id === difficultyId) ?? DIFFICULTY_LEVELS[1];
 
-  // 計算式（spec.md 4.1）
-  const power     = pet.hp + pet.mp + pet.attack + pet.defense;
-  const baseDiff  = user.level * 10 + power * 0.5;
-  const difficulty = baseDiff * diff.coeff;
-  const winRate   = Math.min(WIN_RATE_MAX, Math.max(WIN_RATE_MIN, power / difficulty));
-  const won       = Math.random() < winRate;
+  // 計算式（spec.md 4.1）+ 属性相性乗数
+  const power          = pet.hp + pet.mp + pet.attack + pet.defense;
+  const baseDiff       = user.level * 10 + power * 0.5;
+  const difficulty     = baseDiff * diff.coeff;
+  const affinityMult   = getAffinityMultiplier(pet.attribute, enemyAttribute);
+  const winRate        = Math.min(WIN_RATE_MAX, Math.max(WIN_RATE_MIN, (power / difficulty) * affinityMult));
+  const won            = Math.random() < winRate;
 
   // HP減少
   const hpLoss = won ? HP_LOSS_WIN : HP_LOSS_LOSE;
@@ -89,6 +120,8 @@ export async function runBattle(petId, difficultyId) {
     petHpAfter:      pet.hp,
     difficulty:      Math.round(difficulty),
     power,
+    enemyAttribute,
+    affinityMult,
   };
 }
 
