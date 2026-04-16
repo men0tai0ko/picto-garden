@@ -605,16 +605,19 @@ async function showPetPanel(pet) {
       <span id="panel-pet-name" style="font-size:16px;font-weight:700;color:var(--color-text)">${pet.name ?? pet.type}</span>
       <button id="panel-rename-btn" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--color-text-light);padding:2px 4px" aria-label="名前を変更">✏️</button>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
       <div class="panel-badge-type">${pet.type}</div>
       <div class="panel-badge-personality">${pet.personality}</div>
-      <div style="font-size:12px;color:var(--color-text-light)">${pet.attribute} / ${pet.rarity.split(' ')[0]}</div>
+      <div class="panel-badge-attribute">${pet.attribute}</div>
+      <div class="panel-badge-rarity">${pet.rarity.split(' ')[0]}</div>
     </div>
     <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${pet.skill ?? '—'}</div>
-    ${statBar('HP',    pet.hp,     'hp')}
-    ${statBar('MP',    pet.mp,     'mp')}
-    ${statBar('攻撃',  pet.attack, 'atk')}
-    ${statBar('防御',  pet.defense,'def')}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
+      ${statBar('HP',    pet.hp,     'hp')}
+      ${statBar('MP',    pet.mp,     'mp')}
+      ${statBar('攻撃',  pet.attack, 'atk')}
+      ${statBar('防御',  pet.defense,'def')}
+    </div>
     ${statBar('空腹度', pet.hunger, 'hunger')}
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
       <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px">🍖 餌 🪙${price}</button>
