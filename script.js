@@ -461,11 +461,11 @@ async function feedPet(pet) {
   // 空腹度回復
   fresh.hunger = Math.min(100, fresh.hunger + FEED_HUNGER_RESTORE);
 
-  // HP+20回復
-  fresh.hp = Math.min(STAT_CAP, fresh.hp + FEED_HP_RESTORE);
-
-  // 全ステータスが上限か判定（hp含む・spec.md 1.5）
+  // 全ステータスが上限か判定（HP回復前の実値で判定・spec.md 1.5）
   const allCapped = fresh.hp >= STAT_CAP && fresh.mp >= STAT_CAP && fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
+
+  // HP+20回復（常時）
+  fresh.hp = Math.min(STAT_CAP, fresh.hp + FEED_HP_RESTORE);
 
   if (!allCapped) {
     const bonus = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
