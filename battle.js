@@ -72,7 +72,7 @@ export async function runBattle(petId, difficultyId) {
     await earnCurrency(currencyGained);
 
     // レベルアップ処理（T5：1回で1Lv・上限50）
-    const result = await applyExp(user, expGained);
+    const result = await applyExp(null, expGained);
     leveledUp = result.leveledUp;
     newLevel  = result.level;
   }
@@ -98,9 +98,11 @@ export async function runBattle(petId, difficultyId) {
  * EXP加算・レベルアップ処理
  * 注意：レベルアップは1回で1Lv。難易度再計算はレベルアップ確定後（呼び出し側）
  */
-async function applyExp(user, amount) {
+async function applyExp(_, amount) {
+  // earnCurrency保存後の最新userを取得して上書きを防ぐ
+  const user = await getUser();
+
   if (user.level >= USER_LEVEL_CAP) {
-    // Lv50到達後EXPは0固定
     user.exp = 0;
     await saveUser(user);
     return { leveledUp: false, level: user.level };

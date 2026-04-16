@@ -304,33 +304,13 @@ function showPetPanel(pet) {
       <div style="display:flex;gap:4px">${hungerDots}</div>
     </div>
     <div style="margin-top:14px;display:flex;justify-content:center">
-      <button id="panel-feed-btn" class="btn-primary" style="font-size:13px;padding:10px 24px">
-        🍖 えさをあげる
-      </button>
+      <span style="font-size:12px;color:var(--color-text-light)">🛒 ショップで餌を購入して与えよう</span>
     </div>
   `;
 
   panel.classList.remove('hidden');
   panel.classList.add('open');
 
-  document.getElementById('panel-feed-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('panel-feed-btn');
-    btn.disabled = true;
-    const result = await feedPet(pet);
-    if (!result.ok) {
-      btn.disabled = false;
-      alert(result.message);
-      return;
-    }
-    // パネルをpet最新状態で再描画
-    const updated = await getPet(pet.id);
-    if (updated) {
-      Object.assign(pet, updated);
-      showPetPanel(pet);
-    }
-    await renderStatusBar();
-    await renderGarden();
-  });
 
   document.getElementById('panel-close').onclick = () => {
     panel.classList.remove('open');
