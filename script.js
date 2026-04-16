@@ -238,7 +238,7 @@ async function renderCage() {
 
     const name = document.createElement('div');
     name.className   = 'cage-card-name';
-    name.textContent = `${pet.type}`;
+    name.textContent = pet.name ?? pet.type;
 
     const badges = document.createElement('div');
     badges.className = 'cage-card-badges';
@@ -520,7 +520,15 @@ async function renderGarden() {
       const latest = await getPet(pet.id);
       if (latest) showPetPanel(latest);
     });
-    petsArea.appendChild(canvas);
+
+    // アイコン＋名前をwrapperで包んで縦並び
+    const petWrapper = document.createElement('div');
+    petWrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px';
+    const nameLabel = document.createElement('div');
+    nameLabel.style.cssText = 'font-size:10px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.6);font-weight:700;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center';
+    nameLabel.textContent = pet.name ?? pet.type;
+    petWrapper.append(canvas, nameLabel);
+    petsArea.appendChild(petWrapper);
   }
 }
 
@@ -537,6 +545,10 @@ async function showPetPanel(pet) {
   const price = 10 * user.level;
 
   content.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span id="panel-pet-name" style="font-size:16px;font-weight:700;color:var(--color-text)">${pet.name ?? pet.type}</span>
+      <button id="panel-rename-btn" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--color-text-light);padding:2px 4px" aria-label="名前を変更">✏️</button>
+    </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <div class="panel-badge-type">${pet.type}</div>
       <div class="panel-badge-personality">${pet.personality}</div>
@@ -582,6 +594,40 @@ async function showPetPanel(pet) {
     await renderGarden();
     const updated = await getPet(pet.id);
     if (updated) showPetPanel(updated);
+  });
+
+  // リネームボタン
+  document.getElementById('panel-rename-btn').addEventListener('click', () => {
+    const nameEl  = document.getElementById('panel-pet-name');
+    const current = nameEl.textContent;
+    const input   = document.createElement('input');
+    input.type      = 'text';
+    input.value     = current;
+    input.maxLength = 6;
+    input.style.cssText = 'font-size:16px;font-weight:700;border:none;border-bottom:2px solid var(--color-main);outline:none;width:120px;background:transparent;color:var(--color-text)';
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    /** バリデーション：日本語＋英数字のみ・1〜6文字 */
+    const NAME_PATTERN = /^[\u3040-\u30FF\u4E00-\u9FFF\uFF00-\uFFEFa-zA-Z0-9０-９]+$/;
+
+    const commit = async () => {
+      const val = input.value.trim();
+      const newName = (val && NAME_PATTERN.test(val)) ? val.slice(0, 6) : current;
+      const fresh = await getPet(pet.id);
+      if (fresh) {
+        fresh.name = newName;
+        await savePet(fresh);
+        await renderGarden();
+        showPetPanel(fresh);
+      }
+    };
+    input.addEventListener('blur',    commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter')  { input.blur(); }
+      if (e.key === 'Escape') { input.value = current; input.blur(); }
+    });
   });
 
   document.getElementById('panel-close').onclick = () => {
@@ -878,7 +924,8 @@ async function renderBattle() {
                style="min-width:80px;padding:8px"
                data-pet-id="${p.id}">
             <img src="" alt="${p.type}" style="width:56px;height:56px;border-radius:10px;object-fit:cover" data-blob-pet="${p.id}">
-            <div class="cage-card-name" style="font-size:11px">${p.type}</div>
+            <div class="cage-card-name" style="font-size:11px">${p.name ?? p.type}</div>
+            <div style="font-size:9px;color:var(--color-text-light);text-align:center">${p.type}</div>
             ${warn ? `<div style="font-size:9px;color:var(--color-hp);font-weight:700;text-align:center;margin-top:2px">${warn}</div>` : ''}
           </div>`;
         }).join('')}
@@ -919,8 +966,8 @@ async function renderBattle() {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <canvas id="battle-pet-canvas" width="56" height="56" style="border-radius:10px;flex-shrink:0"></canvas>
         <div>
-          <div style="font-weight:700;font-size:15px">${selectedPet.type}</div>
-          <div style="font-size:11px;color:var(--color-text-light)">${selectedPet.personality} / ${selectedPet.attribute}</div>
+          <div style="font-weight:700;font-size:15px">${selectedPet.name ?? selectedPet.type}</div>
+          <div style="font-size:11px;color:var(--color-text-light)">${selectedPet.type} / ${selectedPet.personality} / ${selectedPet.attribute}</div>
         </div>
       </div>
       ${statBar('HP',   selectedPet.hp,      'hp')}

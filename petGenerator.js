@@ -6,6 +6,27 @@
 
 // ===== 定数（外部定数・後調整容易） =====
 
+/** 名前生成テーブル（形容詞×名詞・各3文字以内で6文字上限を保証） */
+const NAME_ADJECTIVES = [
+  'あかい', 'あおい', 'きいろ', 'くろい', 'しろい',
+  'つよい', 'はやい', 'おおき', 'ちいさ', 'ひかる',
+  'やさし', 'こわい', 'かわい', 'するど', 'ふかい',
+  'たかい', 'にぶい', 'しずか', 'にぎや', 'ふるい',
+];
+const NAME_NOUNS = [
+  'トラ', 'リュウ', 'ホシ', 'カゼ', 'ヒカリ',
+  'ウミ', 'モリ', 'イワ', 'クモ', 'ナミ',
+  'キバ', 'ツメ', 'タマ', 'ホノ', 'コオリ',
+  'ムシ', 'ハナ', 'ツキ', 'タイヨ', 'カミ',
+];
+
+/** ランダム名生成（形容詞+名詞・最大6文字） */
+function generateName() {
+  const adj  = NAME_ADJECTIVES[Math.floor(Math.random() * NAME_ADJECTIVES.length)];
+  const noun = NAME_NOUNS[Math.floor(Math.random() * NAME_NOUNS.length)];
+  return (adj + noun).slice(0, 6);
+}
+
 /** ペット種類（typeIndex と encyclopediaFlags の順序に対応） */
 export const PET_TYPES = [
   { id: 'dragon', label: 'ドラゴン系', animClass: 'pet-anim-dragon' },
@@ -178,6 +199,7 @@ function buildPetObject({ typeIndex, personality, attribute, rarity, imageBlob }
 
   return {
     id,
+    name:        generateName(),               // 表示名（最大6文字・リネーム可）
     typeIndex,                         // encyclopediaFlags配列の添字
     type:        PET_TYPES[typeIndex].label,
     level:       1,
