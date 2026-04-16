@@ -235,6 +235,10 @@ async function renderCage() {
       <div class="stat-bar-wrap" style="height:6px">
         <div class="stat-bar hp" style="width:${pet.hp}%"></div>
       </div>
+      <div style="font-size:9px;color:var(--color-text-light);margin:3px 0 2px">空腹 ${pet.hunger}/100</div>
+      <div class="stat-bar-wrap" style="height:6px">
+        <div class="stat-bar hunger" style="width:${pet.hunger}%"></div>
+      </div>
     `;
 
     card.append(imgEl, name, badges, hpBar);
