@@ -198,7 +198,16 @@ async function renderCage() {
       <span class="badge">${pet.rarity}</span>
     `;
 
-    card.append(imgEl, name, badges);
+    const hpBar = document.createElement('div');
+    hpBar.style.cssText = 'width:100%;margin-top:4px';
+    hpBar.innerHTML = `
+      <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">HP ${pet.hp}/100</div>
+      <div class="stat-bar-wrap" style="height:6px">
+        <div class="stat-bar hp" style="width:${pet.hp}%"></div>
+      </div>
+    `;
+
+    card.append(imgEl, name, badges, hpBar);
 
     // 庭への配置トグル
     card.addEventListener('click', async () => {
@@ -594,8 +603,8 @@ async function renderShop() {
 
 // ===== T4：訓練画面 =====
 
-/** 訓練画面の状態（選択中難易度・選択中ペット） */
-let battleState = { difficultyId: 'normal', petId: null };
+/** 訓練画面の状態（選択中難易度・選択中ペット・ログ） */
+let battleState = { difficultyId: 'normal', petId: null, log: [] };
 
 async function renderBattle() {
   const screen = document.getElementById('screen-battle');
@@ -676,12 +685,25 @@ async function renderBattle() {
     </div>
   `;
 
+  const hasLog = battleState.log.length > 0;
   area.innerHTML = petSelectHTML + diffHTML + statusHTML + `
     <button id="battle-start-btn" class="btn-primary" style="width:100%"${canBlock ? ' disabled' : ''}>
       ⚔️ 訓練開始
     </button>
-    <div id="battle-log" style="margin-top:16px;background:var(--color-white);border-radius:var(--radius-card);padding:14px;box-shadow:var(--shadow);display:none;max-height:200px;overflow-y:auto;font-size:13px;line-height:1.8"></div>
+    <div id="battle-log" style="margin-top:16px;background:var(--color-white);border-radius:var(--radius-card);padding:14px;box-shadow:var(--shadow);display:${hasLog ? 'block' : 'none'};max-height:200px;overflow-y:auto;font-size:13px;line-height:1.8"></div>
   `;
+
+  // 保存済みログを復元（appendLogを使わずDOM直接追記で二重追記防止）
+  if (hasLog) {
+    const logEl = document.getElementById('battle-log');
+    battleState.log.forEach(({ text, color }) => {
+      const line = document.createElement('div');
+      line.style.color = color;
+      line.textContent = text;
+      logEl.appendChild(line);
+    });
+    logEl.scrollTop = logEl.scrollHeight;
+  }
 
   // Blob画像をcanvasに描画
   drawPetToCanvas(selectedPet, document.getElementById('battle-pet-canvas'), 56, 10);
@@ -747,6 +769,7 @@ async function executeBattle() {
   const log = document.getElementById('battle-log');
   log.style.display = 'block';
   log.innerHTML = '';
+  battleState.log = []; // ログリセット
 
   const result = await runBattle(battleState.petId, battleState.difficultyId);
 
@@ -783,6 +806,7 @@ function appendLog(container, text, color = 'var(--color-text)') {
   line.textContent = text;
   container.appendChild(line);
   container.scrollTop = container.scrollHeight;
+  battleState.log.push({ text, color });
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
