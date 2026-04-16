@@ -54,6 +54,7 @@ function switchScreen(name) {
   const panel = document.getElementById('pet-panel');
   panel.classList.remove('open');
   panel.classList.add('hidden');
+  panelOpenPetId = null;
   // 生成画面：庭スロット満杯警告
   if (name === 'generate') renderGenerateWarning();
 }
@@ -176,16 +177,17 @@ function showGeneratedOverlay(pet) {
   infoArea.appendChild(imgEl);
 
   const rarityDesc = {
-    '★★★ レア':    '初期値・成長率高め',
-    '★★ アンコモン': '初期値・成長率やや高め',
-    '★ コモン':     '初期値・成長率ともに標準',
+    '★★★': '初期値・成長率高め',
+    '★★':  '初期値・成長率やや高め',
+    '★':   '初期値・成長率ともに標準',
   };
+  const rarityStars = pet.rarity.split(' ')[0];
   const infoHTML = `
     <div class="result-row">種類: <span>${pet.type}</span></div>
     <div class="result-row">性格: <span>${pet.personality}</span></div>
     <div class="result-row">属性: <span>${pet.attribute}</span></div>
-    <div class="result-row">レア度: <span>${pet.rarity}</span></div>
-    <div class="result-row" style="font-size:11px;color:var(--color-text-light)">${rarityDesc[pet.rarity] ?? ''}</div>
+    <div class="result-row">レア度: <span>${rarityStars}</span></div>
+    <div class="result-row" style="font-size:11px;color:var(--color-text-light)">${rarityDesc[rarityStars] ?? ''}</div>
     <div class="result-row">HP: <span>${pet.hp}</span> / MP: <span>${pet.mp}</span></div>
     <div class="result-row">攻撃: <span>${pet.attack}</span> / 防御: <span>${pet.defense}</span></div>
   `;
@@ -214,6 +216,7 @@ async function renderCage() {
   pets.forEach(pet => {
     const card    = document.createElement('div');
     card.className = 'cage-card';
+    card.setAttribute('data-cage-card', pet.id);
     if (user.gardenPetIds.includes(pet.id)) card.classList.add('in-garden');
 
     // ペット画像
@@ -233,35 +236,13 @@ async function renderCage() {
     badges.innerHTML = `
       <span class="badge">${pet.personality}</span>
       <span class="badge">${pet.attribute}</span>
-      <span class="badge">${pet.rarity}</span>
+      <span class="badge">${pet.rarity.split(' ')[0]}</span>
     `;
 
     const hpBar = document.createElement('div');
     hpBar.style.cssText = 'width:100%;margin-top:4px';
-    hpBar.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px">
-        <div>
-          <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">HP ${pet.hp}</div>
-          <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hp" style="width:${pet.hp}%"></div></div>
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">MP ${pet.mp}</div>
-          <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar mp" style="width:${pet.mp}%"></div></div>
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">攻撃 ${pet.attack}</div>
-          <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar atk" style="width:${pet.attack}%"></div></div>
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">防御 ${pet.defense}</div>
-          <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar def" style="width:${pet.defense}%"></div></div>
-        </div>
-      </div>
-      <div style="margin-top:4px">
-        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">空腹 ${pet.hunger}</div>
-        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hunger" style="width:${pet.hunger}%"></div></div>
-      </div>
-    `;
+    hpBar.setAttribute('data-cage-statbar', '1');
+    hpBar.innerHTML = cageStatBarHTML(pet);
 
     // 給餌ボタン（カード内インライン）
     const feedRow = document.createElement('div');
@@ -271,6 +252,7 @@ async function renderCage() {
     const feedBtn  = document.createElement('button');
     feedBtn.className = 'btn-buy';
     feedBtn.style.cssText = 'flex:1;font-size:11px;padding:6px 0';
+    feedBtn.setAttribute('data-cage-feedbtn', '1');
     feedBtn.textContent = `🍖 餌 🪙${price}`;
 
     const waterBtn = document.createElement('button');
@@ -291,7 +273,9 @@ async function renderCage() {
       if (!result.ok) { alert(result.message); feedBtn.disabled = false; return; }
       await renderStatusBar();
       await renderGarden();
-      await renderCage();
+      const updated = await getPet(pet.id);
+      if (updated) updateCageCard(card, updated, user);
+      feedBtn.disabled = false;
     });
 
     waterBtn.addEventListener('click', async (e) => {
@@ -303,7 +287,9 @@ async function renderCage() {
       await savePet(fresh);
       await renderStatusBar();
       await renderGarden();
-      await renderCage();
+      const updated = await getPet(pet.id);
+      if (updated) updateCageCard(card, updated, user);
+      waterBtn.disabled = false;
     });
 
     // 庭への配置トグル
@@ -340,6 +326,44 @@ async function renderCage() {
     });
   });
   grid.appendChild(emptySlot);
+}
+
+function updateCageCard(card, pet, user) {
+  const hpBar = card.querySelector('[data-cage-statbar]');
+  if (!hpBar) return;
+  hpBar.innerHTML = cageStatBarHTML(pet);
+  // 給餌ボタン価格も更新
+  const feedBtn = card.querySelector('[data-cage-feedbtn]');
+  if (feedBtn) feedBtn.textContent = `🍖 餌 🪙${10 * user.level}`;
+}
+
+/** ケージカード用ステータスバーHTML生成（width クランプ済み） */
+function cageStatBarHTML(pet) {
+  const c = (v) => Math.min(100, Math.max(0, v));
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px">
+      <div>
+        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">HP ${pet.hp}</div>
+        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hp" style="width:${c(pet.hp)}%"></div></div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">MP ${pet.mp}</div>
+        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar mp" style="width:${c(pet.mp)}%"></div></div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">攻撃 ${pet.attack}</div>
+        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar atk" style="width:${c(pet.attack)}%"></div></div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">防御 ${pet.defense}</div>
+        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar def" style="width:${c(pet.defense)}%"></div></div>
+      </div>
+    </div>
+    <div style="margin-top:4px">
+      <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">空腹 ${pet.hunger}</div>
+      <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hunger" style="width:${c(pet.hunger)}%"></div></div>
+    </div>
+  `;
 }
 
 /**
@@ -470,16 +494,23 @@ async function renderGarden() {
     img.onerror = () => URL.revokeObjectURL(blobUrl);
     img.src = blobUrl;
 
-    // タップ → 下部パネル
-    canvas.addEventListener('click', () => showPetPanel(pet));
+    // タップ → 下部パネル（最新データを取得して表示）
+    canvas.addEventListener('click', async () => {
+      const latest = await getPet(pet.id);
+      if (latest) showPetPanel(latest);
+    });
     petsArea.appendChild(canvas);
   }
 }
 
 // ===== 下部パネル（庭ペットタップ時） =====
+/** パネルが開いているペットID（タイマーからの再描画用） */
+let panelOpenPetId = null;
+
 async function showPetPanel(pet) {
   const panel  = document.getElementById('pet-panel');
   const content = document.getElementById('panel-content');
+  panelOpenPetId = pet.id;
 
   const user  = await getUser();
   const price = 10 * user.level;
@@ -488,7 +519,7 @@ async function showPetPanel(pet) {
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <div class="panel-badge-type">${pet.type}</div>
       <div class="panel-badge-personality">${pet.personality}</div>
-      <div style="font-size:12px;color:var(--color-text-light)">${pet.attribute} / ${pet.rarity}</div>
+      <div style="font-size:12px;color:var(--color-text-light)">${pet.attribute} / ${pet.rarity.split(' ')[0]}</div>
     </div>
     ${statBar('HP',    pet.hp,     'hp')}
     ${statBar('MP',    pet.mp,     'mp')}
@@ -533,6 +564,7 @@ async function showPetPanel(pet) {
   document.getElementById('panel-close').onclick = () => {
     panel.classList.remove('open');
     panel.classList.add('hidden');
+    panelOpenPetId = null;
   };
 }
 
@@ -575,15 +607,19 @@ function startHungerTimer() {
       }
       // ====================
 
-      // 庭パネルが開いていれば表示を更新
-      const panel = document.getElementById('pet-panel');
-      if (panel.classList.contains('open')) {
-        await renderGarden();
+      // 庭パネルが開いていれば最新データでパネルを再描画
+      if (panelOpenPetId) {
+        const latest = pets.find(p => p.id === panelOpenPetId);
+        if (latest) await showPetPanel(latest);
       }
-      // ケージ画面が表示中であればカードを更新
+      // ケージ画面が表示中であれば各カードをスクロール位置を保持したまま更新
       const cageScreen = document.getElementById('screen-cage');
       if (cageScreen.classList.contains('active')) {
-        await renderCage();
+        const user2 = await getUser();
+        for (const pet of pets) {
+          const card = cageScreen.querySelector(`[data-cage-card="${pet.id}"]`);
+          if (card) updateCageCard(card, pet, user2);
+        }
       }
     } catch (err) {
       console.error('空腹度タイマーエラー:', err);
@@ -592,11 +628,12 @@ function startHungerTimer() {
 }
 
 function statBar(label, value, cssClass) {
+  const pct = Math.min(100, Math.max(0, value));
   return `
     <div class="panel-stat-row">
       <div class="panel-stat-label">${label}: ${value}/100</div>
       <div class="stat-bar-wrap">
-        <div class="stat-bar ${cssClass}" style="width:${value}%"></div>
+        <div class="stat-bar ${cssClass}" style="width:${pct}%"></div>
       </div>
     </div>
   `;
