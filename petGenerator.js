@@ -381,3 +381,102 @@ export function evolvePetImage(imageBlob, stage) {
     img.src = url;
   });
 }
+
+// ===== 繁殖 =====
+
+/** 繁殖コスト定数 */
+export const BREED_COST_MULTIPLIER = 50; // 50 × ユーザーLv
+export const BREED_HUNGER_MIN      = 50; // 両親の空腹度下限
+export const BREED_PET_CAP         = 20; // 所持ペット上限
+export const BREED_STAT_INHERIT    = 0.7; // ステータス継承係数
+
+/**
+ * 2体の画像を50%ずつ重ね合わせてBlobを返す
+ * @param {Blob} blobA
+ * @param {Blob} blobB
+ * @returns {Promise<Blob>}
+ */
+export function mixPetImages(blobA, blobB) {
+  return new Promise((resolve, reject) => {
+    const SIZE = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width  = SIZE;
+    canvas.height = SIZE;
+    const ctx = canvas.getContext('2d');
+
+    const loadImg = (blob) => new Promise((res, rej) => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload  = () => { URL.revokeObjectURL(url); res(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('画像読み込み失敗')); };
+      img.src = url;
+    });
+
+    Promise.all([loadImg(blobA), loadImg(blobB)]).then(([imgA, imgB]) => {
+      // 親A（不透明）
+      const sA = Math.min(imgA.naturalWidth, imgA.naturalHeight);
+      ctx.globalAlpha = 1.0;
+      ctx.drawImage(imgA, (imgA.naturalWidth - sA) / 2, (imgA.naturalHeight - sA) / 2, sA, sA, 0, 0, SIZE, SIZE);
+      // 親B（50%合成）
+      const sB = Math.min(imgB.naturalWidth, imgB.naturalHeight);
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(imgB, (imgB.naturalWidth - sB) / 2, (imgB.naturalHeight - sB) / 2, sB, sB, 0, 0, SIZE, SIZE);
+      ctx.globalAlpha = 1.0;
+
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('合成画像Blob生成失敗'));
+      }, 'image/png');
+    }).catch(reject);
+  });
+}
+
+/**
+ * 2体のペットから子Petオブジェクトを生成する
+ * @param {Pet} parentA
+ * @param {Pet} parentB
+ * @param {Blob} mixedBlob - mixPetImages()で生成済みのBlob
+ * @returns {Pet}
+ */
+export function breedPet(parentA, parentB, mixedBlob) {
+  // 種族決定：同種→固定、異種→50/50
+  const typeIndex = parentA.typeIndex === parentB.typeIndex
+    ? parentA.typeIndex
+    : (Math.random() < 0.5 ? parentA.typeIndex : parentB.typeIndex);
+
+  // 性格：50/50ランダム
+  const personalityIndex = Math.random() < 0.5
+    ? parentA.personalityIndex
+    : parentB.personalityIndex;
+
+  // 属性：50/50ランダム
+  const attribute = Math.random() < 0.5 ? parentA.attribute : parentB.attribute;
+
+  // レア度：50/50ランダム
+  const rarity = Math.random() < 0.5 ? parentA.rarity : parentB.rarity;
+
+  // ステータス継承：両親平均×0.7・最低1
+  const inheritStat = (a, b) => Math.max(1, Math.floor(((a + b) / 2) * BREED_STAT_INHERIT));
+
+  const id = `pet_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  return {
+    id,
+    name:             generateName(),
+    typeIndex,
+    type:             PET_TYPES[typeIndex].label,
+    level:            1,
+    hp:               inheritStat(parentA.hp,      parentB.hp),
+    mp:               inheritStat(parentA.mp,      parentB.mp),
+    attack:           inheritStat(parentA.attack,  parentB.attack),
+    defense:          inheritStat(parentA.defense, parentB.defense),
+    hunger:           100,
+    personalityIndex,
+    personality:      PERSONALITIES[personalityIndex].label,
+    skill:            SKILLS[personalityIndex].id,
+    attribute,
+    rarity,
+    imageData:        mixedBlob,
+    evolutionStage:   0,
+  };
+}

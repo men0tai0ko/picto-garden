@@ -8,7 +8,7 @@
  */
 
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet } from './state.js';
-import { generatePetFromImage, PET_TYPES, PERSONALITIES, evolvePetImage } from './petGenerator.js';
+import { generatePetFromImage, PET_TYPES, PERSONALITIES, evolvePetImage, mixPetImages, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
@@ -336,6 +336,20 @@ async function renderCage() {
     });
   });
   grid.appendChild(emptySlot);
+
+  // 繁殖ボタン（ペットが2体以上いる場合のみ表示）
+  if (pets.length >= 2) {
+    const breedBtn = document.createElement('button');
+    breedBtn.className = 'btn-primary';
+    breedBtn.style.cssText = 'width:100%;margin:8px 0 4px;font-size:14px;background:var(--color-accent)';
+    breedBtn.textContent = `💞 繁殖する 🪙${50 * user.level}`;
+    breedBtn.addEventListener('click', () => showBreedOverlay(pets, user));
+    // grid は2列のため colspan相当にcolumn-span指定
+    const breedWrap = document.createElement('div');
+    breedWrap.style.cssText = 'grid-column: 1 / -1';
+    breedWrap.appendChild(breedBtn);
+    grid.appendChild(breedWrap);
+  }
 }
 
 function updateCageCard(card, pet, user) {
@@ -1353,6 +1367,159 @@ function showSlotExpandOverlay(newSlots) {
   overlay.classList.remove('hidden');
   document.getElementById('slot-expand-ok-btn').onclick = () => {
     overlay.classList.add('hidden');
+  };
+}
+
+// ===== 繁殖オーバーレイ =====
+
+/**
+ * 繁殖UI：2体選択→確認→実行
+ * @param {Pet[]} pets
+ * @param {User} user
+ */
+async function showBreedOverlay(pets, user) {
+  let overlay = document.getElementById('overlay-breed');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'overlay-breed';
+    overlay.className = 'overlay';
+    document.body.appendChild(overlay);
+  }
+
+  // 選択状態管理
+  let selectedIds = [];
+
+  const render = () => {
+    const cost = BREED_COST_MULTIPLIER * user.level;
+    overlay.innerHTML = `
+      <div class="overlay-card" style="width:min(340px,92vw);max-height:80vh;overflow-y:auto">
+        <h3 style="font-size:16px">💞 繁殖</h3>
+        <p style="font-size:12px;color:var(--color-text-light);margin-top:-6px">
+          2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
+        </p>
+        <div id="breed-pet-list" style="display:flex;flex-direction:column;gap:8px;width:100%;margin:10px 0"></div>
+        <div style="display:flex;gap:8px;width:100%;margin-top:4px">
+          <button class="btn-primary" id="breed-exec-btn"
+            style="flex:1;background:var(--color-accent)"
+            ${selectedIds.length !== 2 ? 'disabled' : ''}>
+            繁殖！
+          </button>
+          <button class="btn-primary" id="breed-cancel-btn" style="flex:1;background:#aaa">キャンセル</button>
+        </div>
+      </div>
+    `;
+
+    const list = document.getElementById('breed-pet-list');
+    pets.forEach(pet => {
+      const isSelected = selectedIds.includes(pet.id);
+      const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:center;gap:10px;background:${isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-bg)'};border-radius:10px;padding:8px 12px;cursor:${canSelect ? 'pointer' : 'default'};border:2px solid ${isSelected ? 'var(--color-main)' : 'transparent'};opacity:${canSelect ? '1' : '0.45'}`;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 40; canvas.height = 40;
+      canvas.style.cssText = 'border-radius:8px;flex-shrink:0';
+      drawPetToCanvas(pet, canvas, 40, 6);
+
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0';
+      info.innerHTML = `
+        <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
+        <div style="font-size:10px;color:var(--color-text-light)">${pet.type} / 空腹${pet.hunger}</div>
+      `;
+
+      if (canSelect) {
+        row.addEventListener('click', () => {
+          if (isSelected) {
+            selectedIds = selectedIds.filter(id => id !== pet.id);
+          } else if (selectedIds.length < 2) {
+            selectedIds.push(pet.id);
+          }
+          render();
+        });
+      }
+      row.append(canvas, info);
+      list.appendChild(row);
+    });
+
+    document.getElementById('breed-cancel-btn').onclick = () => overlay.classList.add('hidden');
+
+    document.getElementById('breed-exec-btn').onclick = async () => {
+      if (selectedIds.length !== 2) return;
+      const btn = document.getElementById('breed-exec-btn');
+      btn.disabled = true;
+      btn.textContent = '合成中...';
+
+      // 所持上限チェック
+      const allPets = await getAllPets();
+      if (allPets.length >= BREED_PET_CAP) {
+        alert(`ペットの所持上限（${BREED_PET_CAP}体）に達しています`);
+        btn.disabled = false; btn.textContent = '繁殖！'; return;
+      }
+
+      // 通貨消費
+      const cost = BREED_COST_MULTIPLIER * user.level;
+      const { ok } = await spendCurrency(cost);
+      if (!ok) {
+        alert(`通貨が足りません（必要: 🪙${cost}）`);
+        btn.disabled = false; btn.textContent = '繁殖！'; return;
+      }
+
+      // 親データ取得
+      const [pA, pB] = await Promise.all([getPet(selectedIds[0]), getPet(selectedIds[1])]);
+      if (!pA || !pB) { btn.disabled = false; btn.textContent = '繁殖！'; return; }
+
+      // 画像合成→子生成→保存
+      const mixedBlob = await mixPetImages(pA.imageData, pB.imageData);
+      const child     = breedPet(pA, pB, mixedBlob);
+      await registerNewPet(child);
+
+      overlay.classList.add('hidden');
+      await renderStatusBar();
+      await renderEncyclopedia();
+      await renderCage();
+      showBreedResultOverlay(child);
+    };
+  };
+
+  render();
+  overlay.classList.remove('hidden');
+}
+
+/** 繁殖完了オーバーレイ */
+function showBreedResultOverlay(child) {
+  let overlay = document.getElementById('overlay-breed-result');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'overlay-breed-result';
+    overlay.className = 'overlay';
+    overlay.innerHTML = `
+      <div class="overlay-card">
+        <h3>💞 新しいペットが生まれた！</h3>
+        <canvas id="breed-result-canvas" width="100" height="100" style="border-radius:18px;margin:4px 0"></canvas>
+        <div id="breed-result-body" style="font-size:13px;text-align:left;width:100%;line-height:2"></div>
+        <button class="btn-primary" id="breed-result-ok-btn">ケージへ</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  drawPetToCanvas(child, document.getElementById('breed-result-canvas'), 100, 18);
+  document.getElementById('breed-result-body').innerHTML = `
+    <div>名前: <strong>${child.name}</strong></div>
+    <div>種族: <strong>${child.type}</strong></div>
+    <div>性格: <strong>${child.personality}</strong></div>
+    <div>属性: <strong>${child.attribute}</strong></div>
+    <div>レア度: <strong>${child.rarity.split(' ')[0]}</strong></div>
+    <div style="font-size:11px;color:var(--color-text-light)">HP ${child.hp} / MP ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
+  `;
+  overlay.classList.remove('hidden');
+  document.getElementById('breed-result-ok-btn').onclick = () => {
+    overlay.classList.add('hidden');
+    switchScreen('cage');
+    document.querySelectorAll('.nav-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.screen === 'cage')
+    );
   };
 }
 
