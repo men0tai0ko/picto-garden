@@ -47,6 +47,10 @@ function switchScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById(`screen-${name}`);
   if (target) target.classList.add('active');
+  // 画面切替時にステータスパネルを閉じる
+  const panel = document.getElementById('pet-panel');
+  panel.classList.remove('open');
+  panel.classList.add('hidden');
 }
 
 // ===== ステータスバー =====
@@ -474,6 +478,36 @@ async function renderShop() {
     const updated = await getUser();
     const newPrice = 10 * updated.level;
     document.querySelector('#shop-items .shop-price').textContent = `🪙${newPrice}`;
+    await renderStatusBar();
+  });
+
+  // 無料の水カード（詰み防止：通貨0でもHP+10回復可能）
+  const waterCard = document.createElement('div');
+  waterCard.className = 'shop-card';
+  waterCard.innerHTML = `
+    <div class="shop-card-icon">💧</div>
+    <div class="shop-card-info">
+      <h3>おみず（無料）</h3>
+      <p>HP+10回復。通貨がないときでも使える</p>
+    </div>
+    <span class="shop-price">🪙0</span>
+    <button class="btn-buy" id="shop-buy-water">あげる</button>
+  `;
+  container.appendChild(waterCard);
+
+  document.getElementById('shop-buy-water').addEventListener('click', async () => {
+    const btn = document.getElementById('shop-buy-water');
+    const u   = await getUser();
+    if (u.gardenPetIds.length === 0) {
+      alert('庭にペットを出してから使ってください');
+      return;
+    }
+    btn.disabled = true;
+    const pet = await getPet(u.gardenPetIds[0]);
+    if (!pet) { btn.disabled = false; return; }
+    pet.hp = Math.min(100, pet.hp + 10);
+    await savePet(pet);
+    btn.disabled = false;
     await renderStatusBar();
   });
 }
