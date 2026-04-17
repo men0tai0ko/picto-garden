@@ -8,7 +8,7 @@
  */
 
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet, syncEncyclopediaFlags } from './state.js';
-import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP, calcStatCaps } from './petGenerator.js';
+import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP, calcStatCaps, BREED_EVOLUTION_MIN } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
@@ -613,8 +613,8 @@ async function showPetPanel(pet) {
     </div>
     <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${pet.skill ?? '—'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-      ${statBar('HP',    pet.hp,     'hp',    pet.statCaps?.hp      ?? STAT_CAP)}
-      ${statBar('MP',    pet.mp,     'mp',    pet.statCaps?.mp      ?? STAT_CAP)}
+      ${statBar('体力',  pet.hp,     'hp',    pet.statCaps?.hp      ?? STAT_CAP)}
+      ${statBar('魔力',  pet.mp,     'mp',    pet.statCaps?.mp      ?? STAT_CAP)}
       ${statBar('攻撃',  pet.attack, 'atk',   pet.statCaps?.attack  ?? STAT_CAP)}
       ${statBar('防御',  pet.defense,'def',   pet.statCaps?.defense ?? STAT_CAP)}
     </div>
@@ -1070,7 +1070,7 @@ async function renderBattle() {
   `;
 
   // 選択ペットのステータス表示
-  const canBlock = selectedPet.hp <= 0 ? 'HP0のため訓練不可（餌で回復）'
+  const canBlock = selectedPet.hp <= 0 ? '体力0のため訓練不可（餌で回復）'
                  : selectedPet.hunger <= 0 ? '空腹度0のため訓練不可（餌で回復）'
                  : null;
 
@@ -1112,15 +1112,15 @@ async function renderBattle() {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-        ${statBar('HP',   selectedPet.hp,      'hp',  selectedPet.statCaps?.hp      ?? STAT_CAP)}
-        ${statBar('MP',   selectedPet.mp,      'mp',  selectedPet.statCaps?.mp      ?? STAT_CAP)}
+        ${statBar('体力', selectedPet.hp,      'hp',  selectedPet.statCaps?.hp      ?? STAT_CAP)}
+        ${statBar('魔力', selectedPet.mp,      'mp',  selectedPet.statCaps?.mp      ?? STAT_CAP)}
         ${statBar('攻撃', selectedPet.attack,  'atk', selectedPet.statCaps?.attack  ?? STAT_CAP)}
         ${statBar('防御', selectedPet.defense, 'def', selectedPet.statCaps?.defense ?? STAT_CAP)}
       </div>
       ${statBar('満腹度', selectedPet.hunger, 'hunger')}
       <div style="display:flex;gap:6px;margin-top:10px">
         <button id="battle-feed-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0">🍖 餌 🪙${price}</button>
-        <button id="battle-water-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0;background:var(--color-mp)">💧 水</button>
+        <button id="battle-water-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0;background:var(--color-mp)">💧 おみず</button>
       </div>
       ${canBlock ? `<p style="color:var(--color-hp);font-size:12px;margin-top:8px;text-align:center">${canBlock}</p>` : ''}
     </div>
@@ -1448,14 +1448,14 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
   }
 
   // 停止理由ラベル
-  const stopLabel = stopReason === 'hp0'     ? '⚠️ HPが0になりました'
+  const stopLabel = stopReason === 'hp0'     ? '⚠️ 体力が0になりました'
                   : stopReason === 'hunger0' ? '⚠️ 空腹度が0になりました'
                   : '🛑 中断しました';
   const stopColor = stopReason === 'aborted' ? 'var(--color-text-light)' : 'var(--color-hp)';
 
   document.getElementById('battle-result-body').innerHTML = `
     <div style="font-size:12px;color:${stopColor};margin-bottom:6px">${stopLabel}</div>
-    <div>HP <span style="color:var(--color-hp)">-${lastResult.hpLoss}</span><span style="font-size:11px;color:var(--color-text-light)">（最終戦）</span></div>
+    <div>体力 <span style="color:var(--color-hp)">-${lastResult.hpLoss}</span><span style="font-size:11px;color:var(--color-text-light)">（最終戦）</span></div>
     <div>EXP <span style="color:var(--color-main)">+${session.totalExp}</span></div>
     <div>🪙 <span style="color:var(--color-accent)">+${session.totalCurrency}</span></div>
   `;
@@ -1650,13 +1650,13 @@ async function renderBreed() {
   // コスト説明（grid-column:1/-1 で2列結合）
   area.innerHTML = `
     <p style="grid-column:1/-1;font-size:12px;color:var(--color-text-light);margin:0">
-      2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
+      2体選択・空腹度${BREED_HUNGER_MIN}以上・進化MAX必要 / 🪙${cost}
     </p>
   `;
 
   latestPets.forEach(pet => {
     const isSelected = selectedBreedIds.includes(pet.id);
-    const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
+    const canSelect  = pet.hunger >= BREED_HUNGER_MIN && (pet.evolutionStage ?? 0) >= BREED_EVOLUTION_MIN;
 
     // カード本体
     const card = document.createElement('div');
@@ -1775,7 +1775,7 @@ function showBreedResultOverlay(child) {
     <div>性格: <strong>${child.personality}</strong></div>
     <div>属性: <strong>${child.attribute}</strong></div>
     <div>レア度: <strong>${child.rarity}</strong></div>
-    <div style="font-size:11px;color:var(--color-text-light)">HP ${child.hp} / MP ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
+    <div style="font-size:11px;color:var(--color-text-light)">体力 ${child.hp} / 魔力 ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
   `;
   overlay.classList.remove('hidden');
   const closeBreedResult = () => {

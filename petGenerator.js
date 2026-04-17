@@ -386,6 +386,7 @@ export const BREED_COST_MULTIPLIER = 50; // 50 × ユーザーLv
 export const BREED_HUNGER_MIN      = 50; // 両親の空腹度下限
 export const BREED_PET_CAP         = 20; // 所持ペット上限
 export const BREED_STAT_INHERIT    = 0.7; // ステータス継承係数
+export const BREED_EVOLUTION_MIN   = 2;  // 繁殖に必要な最低進化段階
 
 // ===== ステータス上限 =====
 
