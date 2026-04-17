@@ -78,8 +78,9 @@ function switchScreen(name) {
   const target = document.getElementById(`screen-${name}`);
   if (target) target.classList.add('active');
   // cage-footer表示制御
-  document.body.classList.toggle('screen-cage',  name === 'cage');
-  document.body.classList.toggle('screen-breed', name === 'breed');
+  document.body.classList.toggle('screen-cage',     name === 'cage');
+  document.body.classList.toggle('screen-breed',    name === 'breed');
+  document.body.classList.toggle('screen-generate', name === 'generate');
   // 繁殖画面から離れる時に選択状態をリセット
   if (name !== 'breed') selectedBreedIds = [];
   // 画面切替時にステータスパネルを閉じる
@@ -191,6 +192,14 @@ function initGenerateScreen() {
       generateBtn.textContent = 'ペットを生成する ✨';
     }
   });
+
+  // キャンセルボタン：ケージへ戻る
+  document.getElementById('generate-footer-cancel').onclick = () => {
+    switchScreen('cage');
+    document.querySelectorAll('.nav-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.screen === 'cage')
+    );
+  };
 }
 
 // ===== 生成完了オーバーレイ =====
@@ -1122,14 +1131,18 @@ async function renderBattle() {
     const result = await feedPet(fresh);
     if (!result.ok) { alert(result.message); btn.disabled = false; return; }
     const updated = await getPet(battleState.petId);
+    const screenEl = document.getElementById('screen-battle');
+    const screenScrollTop = screenEl ? screenEl.scrollTop : 0;
     const logEl = document.getElementById('battle-log');
-    const scrollTop = logEl ? logEl.scrollTop : 0;
+    const logScrollTop = logEl ? logEl.scrollTop : 0;
     await renderBattle();
     await renderStatusBar();
     await renderCage();
     await renderGarden();
+    const screenElAfter = document.getElementById('screen-battle');
+    if (screenElAfter) screenElAfter.scrollTop = screenScrollTop;
     const logElAfter = document.getElementById('battle-log');
-    if (logElAfter) logElAfter.scrollTop = scrollTop;
+    if (logElAfter) logElAfter.scrollTop = logScrollTop;
     if (result.evolved && updated) showEvolutionOverlay(updated, result.evolutionStage);
   });
 
@@ -1140,14 +1153,18 @@ async function renderBattle() {
     const fresh = await getPet(battleState.petId);
     if (!fresh) { btn.disabled = false; return; }
     await waterPet(fresh);
+    const screenEl = document.getElementById('screen-battle');
+    const screenScrollTop = screenEl ? screenEl.scrollTop : 0;
     const logEl = document.getElementById('battle-log');
-    const scrollTop = logEl ? logEl.scrollTop : 0;
+    const logScrollTop = logEl ? logEl.scrollTop : 0;
     await renderBattle();
     await renderStatusBar();
     await renderCage();
     await renderGarden();
+    const screenElAfter = document.getElementById('screen-battle');
+    if (screenElAfter) screenElAfter.scrollTop = screenScrollTop;
     const logElAfter = document.getElementById('battle-log');
-    if (logElAfter) logElAfter.scrollTop = scrollTop;
+    if (logElAfter) logElAfter.scrollTop = logScrollTop;
   });
 
   // ペット選択クリック
@@ -1551,6 +1568,20 @@ function showReleaseConfirmDialog(pet) {
 
 // ===== 繁殖画面 =====
 
+/** 繁殖画面のチェック状態をDOMに反映（再描画なし） */
+function updateBreedSelection() {
+  document.querySelectorAll('[data-breed-card]').forEach(card => {
+    const id = card.getAttribute('data-breed-card');
+    const isSelected = selectedBreedIds.includes(id);
+    card.style.border = `2px solid ${isSelected ? 'var(--color-main)' : 'transparent'}`;
+    card.style.background = isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-white)';
+    const chk = card.querySelector('[data-breed-check]');
+    if (chk) chk.textContent = isSelected ? '✅' : '⬜';
+  });
+  const execBtn = document.getElementById('breed-footer-exec');
+  if (execBtn) execBtn.disabled = selectedBreedIds.length !== 2;
+}
+
 /**
  * 繁殖画面を描画する（screen-breed内）
  * selectedBreedIdsはモジュール変数で保持
@@ -1561,44 +1592,63 @@ async function renderBreed() {
   const latestUser = await getUser();
   const cost = BREED_COST_MULTIPLIER * latestUser.level;
 
-  // コスト説明
+  // コスト説明（grid-column:1/-1 で2列結合）
   area.innerHTML = `
-    <p style="font-size:12px;color:var(--color-text-light);margin:0">
+    <p style="grid-column:1/-1;font-size:12px;color:var(--color-text-light);margin:0">
       2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
     </p>
   `;
 
-  // ペットリスト
   latestPets.forEach(pet => {
     const isSelected = selectedBreedIds.includes(pet.id);
     const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
-    const row = document.createElement('div');
-    row.style.cssText = `display:flex;align-items:center;gap:10px;background:${isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-white)'};border-radius:10px;padding:8px 12px;cursor:${canSelect ? 'pointer' : 'default'};border:2px solid ${isSelected ? 'var(--color-main)' : 'transparent'};opacity:${canSelect ? '1' : '0.45'};box-shadow:var(--shadow)`;
 
+    // カード本体
+    const card = document.createElement('div');
+    card.setAttribute('data-breed-card', pet.id);
+    card.style.cssText = `position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;background:${isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-white)'};border-radius:${getComputedStyle(document.documentElement).getPropertyValue('--radius-card').trim()};padding:10px 8px;border:2px solid ${isSelected ? 'var(--color-main)' : 'transparent'};box-shadow:var(--shadow);cursor:pointer;opacity:${canSelect ? '1' : '0.45'}`;
+
+    // ペット画像
     const canvas = document.createElement('canvas');
-    canvas.width = 40; canvas.height = 40;
-    canvas.style.cssText = 'border-radius:8px;flex-shrink:0';
-    drawPetToCanvas(pet, canvas, 40, 6);
+    canvas.width = 56; canvas.height = 56;
+    canvas.style.cssText = 'border-radius:10px;flex-shrink:0';
+    drawPetToCanvas(pet, canvas, 56, 8);
 
+    // 名前・種類
     const info = document.createElement('div');
-    info.style.cssText = 'flex:1;min-width:0';
+    info.style.cssText = 'width:100%;text-align:center;min-width:0';
     info.innerHTML = `
-      <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
-      <div style="font-size:10px;color:var(--color-text-light)">${pet.type} / 空腹${pet.hunger}</div>
+      <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
+      <div style="font-size:10px;color:var(--color-text-light)">空腹${pet.hunger}</div>
     `;
 
+    // チェックボタン（右上オーバーレイ）
+    const chkBtn = document.createElement('button');
+    chkBtn.setAttribute('data-breed-check', '1');
+    chkBtn.textContent = isSelected ? '✅' : '⬜';
+    chkBtn.style.cssText = 'position:absolute;top:4px;right:4px;background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1';
+    chkBtn.setAttribute('aria-label', '選択');
+
     if (canSelect) {
-      row.addEventListener('click', () => {
-        if (isSelected) {
+      chkBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (selectedBreedIds.includes(pet.id)) {
           selectedBreedIds = selectedBreedIds.filter(id => id !== pet.id);
         } else if (selectedBreedIds.length < 2) {
           selectedBreedIds.push(pet.id);
         }
-        renderBreed();
+        updateBreedSelection();
       });
     }
-    row.append(canvas, info);
-    area.appendChild(row);
+
+    // カード本体タップ → ステータスパネル表示
+    card.addEventListener('click', async () => {
+      const latest = await getPet(pet.id);
+      if (latest) showPetPanel(latest);
+    });
+
+    card.append(canvas, info, chkBtn);
+    area.appendChild(card);
   });
 
   // footerボタン状態更新
@@ -1609,14 +1659,12 @@ async function renderBreed() {
     if (selectedBreedIds.length !== 2) return;
     execBtn.disabled = true;
 
-    // 所持上限チェック
     const allPets = await getAllPets();
     if (allPets.length >= BREED_PET_CAP) {
       alert(`ペットの所持上限（${BREED_PET_CAP}体）に達しています`);
       execBtn.disabled = false; return;
     }
 
-    // 通貨消費
     const currentUser = await getUser();
     const currentCost = BREED_COST_MULTIPLIER * currentUser.level;
     const { ok } = await spendCurrency(currentCost);
@@ -1625,11 +1673,9 @@ async function renderBreed() {
       execBtn.disabled = false; return;
     }
 
-    // 親データ取得
     const [pA, pB] = await Promise.all([getPet(selectedBreedIds[0]), getPet(selectedBreedIds[1])]);
     if (!pA || !pB) { execBtn.disabled = false; return; }
 
-    // 子生成・保存
     const inheritedBlob = Math.random() < 0.5 ? pA.imageData : pB.imageData;
     const child = breedPet(pA, pB, inheritedBlob);
     await registerNewPet(child);

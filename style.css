@@ -492,17 +492,28 @@ body {
   flex-direction: row;
   align-items: stretch;
 }
-body.screen-cage #cage-footer { display: flex; }
-body.screen-breed #cage-footer { display: flex; }
-/* 繁殖用ボタンはデフォルト非表示・screen-breed時のみ表示 */
+body.screen-cage #cage-footer    { display: flex; }
+body.screen-breed #cage-footer   { display: flex; }
+body.screen-generate #cage-footer { display: flex; }
+/* 繁殖用・生成用ボタンはデフォルト非表示 */
 #breed-footer-exec,
-#breed-footer-cancel { display: none; }
+#breed-footer-cancel,
+#generate-footer-cancel { display: none; }
+/* screen-breed：ケージ用3ボタン非表示・繁殖用2ボタン表示 */
 body.screen-breed #cage-btn-generate,
 body.screen-breed #cage-btn-breed,
 body.screen-breed #cage-btn-edit     { display: none; }
 body.screen-breed #breed-footer-exec,
 body.screen-breed #breed-footer-cancel { display: flex; }
-#breed-area { padding: 8px 16px 52px; display: flex; flex-direction: column; gap: 8px; }
+/* screen-generate：ケージ用3ボタン非表示・キャンセルのみ表示 */
+body.screen-generate #cage-btn-generate,
+body.screen-generate #cage-btn-breed,
+body.screen-generate #cage-btn-edit  { display: none; }
+body.screen-generate #generate-footer-cancel { display: flex; }
+/* breed-area：2列グリッド */
+#breed-area { padding: 8px 16px 52px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* screen-generate：フッター分の余白 */
+#screen-generate { padding-bottom: 52px; }
 .cage-footer-btn {
   flex: 1;
   display: flex;
