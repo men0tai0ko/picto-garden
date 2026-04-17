@@ -234,6 +234,7 @@ body {
   cursor: pointer;
   border: 2.5px solid transparent;
   transition: border-color var(--transition);
+  position: relative;
 }
 .cage-card.in-garden { border-color: var(--color-main); }
 .cage-card img {
@@ -752,8 +753,8 @@ body.screen-generate #cage-btn-generate,
 body.screen-generate #cage-btn-breed,
 body.screen-generate #cage-btn-edit  { display: none; }
 body.screen-generate #generate-footer-cancel { display: flex; }
-/* breed-area：2列グリッド */
-#breed-area { padding: 8px 16px 52px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* breed-area：説明文＋カードリスト縦並び */
+#breed-area { padding: 8px 0 52px; }
 /* screen-generate：フッター分の余白 */
 #screen-generate { padding-bottom: 52px; }
 .cage-footer-btn {

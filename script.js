@@ -2200,30 +2200,35 @@ async function _renderBreedArea() {
   const cost = BREED_COST_MULTIPLIER * user.level;
 
   area.innerHTML = `
-    <p style="font-size:12px;color:var(--color-text-light);padding:0 16px;margin-bottom:12px">
+    <p style="font-size:12px;color:var(--color-text-light);padding:0 16px;margin-bottom:10px">
       2体選択・空腹度${BREED_HUNGER_MIN}以上・進化${BREED_EVOLUTION_MIN}段階以上が必要 / 🪙${cost}
     </p>
-    <div id="breed-pet-list" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 80px"></div>
+    <div id="breed-pet-list" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 16px"></div>
   `;
 
   const list = document.getElementById('breed-pet-list');
   pets.forEach(pet => {
     const isSelected = breedSelectedIds.includes(pet.id);
     const canSelect  = pet.hunger >= BREED_HUNGER_MIN && (pet.evolutionStage ?? 0) >= BREED_EVOLUTION_MIN;
+
     const card = document.createElement('div');
-    card.style.cssText = `display:flex;flex-direction:column;align-items:center;background:${isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-white)'};border-radius:12px;padding:10px 8px;cursor:${canSelect ? 'pointer' : 'default'};border:2px solid ${isSelected ? 'var(--color-main)' : 'transparent'};opacity:${canSelect ? '1' : '0.45'};box-shadow:var(--shadow);position:relative`;
+    card.className = `cage-card${isSelected ? ' in-garden' : ''}`;
+    if (!canSelect) card.style.opacity = '0.4';
 
     const canvas = document.createElement('canvas');
     canvas.width = 72; canvas.height = 72;
-    canvas.style.cssText = 'border-radius:10px;margin-bottom:6px';
+    canvas.style.cssText = 'border-radius:12px;object-fit:cover';
     drawPetToCanvas(pet, canvas, 72, 10);
+    const evoClass = getEvolutionClass(pet.evolutionStage ?? 0);
+    if (evoClass) canvas.classList.add(evoClass);
 
     const name = document.createElement('div');
-    name.style.cssText = 'font-size:12px;font-weight:700;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%';
+    name.className = 'cage-card-name';
+    name.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;text-align:center';
     name.textContent = pet.name ?? pet.type;
 
     const sub = document.createElement('div');
-    sub.style.cssText = 'font-size:10px;color:var(--color-text-light);text-align:center;margin-top:2px';
+    sub.style.cssText = 'font-size:10px;color:var(--color-text-light);text-align:center';
     sub.textContent = `${pet.type} / 空腹${pet.hunger}`;
 
     const check = document.createElement('div');
@@ -2251,7 +2256,7 @@ async function _renderBreedArea() {
     card.style.cursor = 'pointer';
     card.addEventListener('click', () => showPetPanel(pet));
 
-    card.append(canvas, name, sub, check);
+    card.append(wrapWithGenerationBadge(canvas, pet.generation ?? 0), name, sub, check);
     list.appendChild(card);
   });
 
