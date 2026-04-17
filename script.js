@@ -1074,9 +1074,14 @@ async function renderBattle() {
     <div style="background:var(--color-white);border-radius:var(--radius-card);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <canvas id="battle-pet-canvas" width="56" height="56" style="border-radius:10px;flex-shrink:0"></canvas>
-        <div>
-          <div style="font-weight:700;font-size:15px">${selectedPet.name ?? selectedPet.type}</div>
-          <div style="font-size:11px;color:var(--color-text-light)">${selectedPet.type} / ${selectedPet.personality} / ${selectedPet.attribute}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:15px;margin-bottom:4px">${selectedPet.name ?? selectedPet.type}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <div class="panel-badge-type">${selectedPet.type}</div>
+            <div class="panel-badge-personality">${selectedPet.personality}</div>
+            <div class="panel-badge-attribute">${selectedPet.attribute}</div>
+            <div class="panel-badge-rarity">${selectedPet.rarity}</div>
+          </div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
