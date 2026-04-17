@@ -1734,6 +1734,7 @@ function exitPlaceMode() {
   if (housingPreviewEl) { housingPreviewEl.remove(); housingPreviewEl = null; }
   const gardenScreen = document.getElementById('screen-garden');
   gardenScreen.removeEventListener('pointermove', onGardenPointerMove);
+  gardenScreen.removeEventListener('mousemove',   onGardenPointerMove);
   gardenScreen.removeEventListener('pointerup',   onGardenPointerUp);
   gardenScreen.removeEventListener('pointerdown', onGardenPointerDown);
 }
@@ -1863,63 +1864,75 @@ function enterPlaceMode(item) {
   guide.textContent = `タップで配置・画面外でキャンセル`;
   guide.hidden = false;
 
+  // プレビュー初期位置を庭エリア中央に設定
+  housingPreviewEl.style.left = '50%';
+  housingPreviewEl.style.top  = '50%';
+
   const gardenScreen = document.getElementById('screen-garden');
   gardenScreen.addEventListener('pointermove', onGardenPointerMove);
+  gardenScreen.addEventListener('mousemove',   onGardenPointerMove);
   gardenScreen.addEventListener('pointerup',   onGardenPointerUp);
   gardenScreen.addEventListener('pointerdown', onGardenPointerDown);
 }
 
-/** プレビューをポインタ位置に追従 */
+/** ポインタ座標を庭エリアの % に変換するユーティリティ */
+function _gardenPct(e, gardenEl) {
+  const rect = gardenEl.getBoundingClientRect();
+  return {
+    x: ((e.clientX - rect.left) / rect.width)  * 100,
+    y: ((e.clientY - rect.top)  / rect.height) * 100,
+  };
+}
+
+/** プレビューをポインタ位置に追従（mousemove / pointermove 共用） */
 function onGardenPointerMove(e) {
   if (!housingPreviewEl || !housingPlaceItemId) return;
-  const rect = e.currentTarget.getBoundingClientRect();
-  const xPct = ((e.clientX - rect.left) / rect.width)  * 100;
-  const yPct = ((e.clientY - rect.top)  / rect.height) * 100;
-  housingPreviewEl.style.left = `${xPct}%`;
-  housingPreviewEl.style.top  = `${yPct}%`;
+  const { x, y } = _gardenPct(e, e.currentTarget);
+  housingPreviewEl.style.left = `${x}%`;
+  housingPreviewEl.style.top  = `${y}%`;
 }
 
-/** pointerdown = タップ位置確定 */
+/** pointerdown: スマホ向け配置確定（pointerTypeがtouchのみ） */
 function onGardenPointerDown(e) {
-  // ガイドメッセージやアイテム自体はスキップしない（タップ位置として使う）
-  e.stopPropagation();
+  if (e.pointerType !== 'touch') return;
+  _confirmPlace(e);
 }
 
-/** pointerup = 配置確定 */
-async function onGardenPointerUp(e) {
+/** pointerup: マウス向け配置確定（pointerTypeがmouseのみ） */
+function onGardenPointerUp(e) {
+  if (e.pointerType !== 'mouse') return;
+  _confirmPlace(e);
+}
+
+/** 配置確定処理（タップ・クリック共通） */
+async function _confirmPlace(e) {
   if (!housingPlaceItemId) return;
   const itemId = housingPlaceItemId;
   const item   = ITEM_CATALOG.find(it => it.id === itemId);
   if (!item) { exitPlaceMode(); return; }
 
-  const rect   = e.currentTarget.getBoundingClientRect();
-  const xPct   = ((e.clientX - rect.left) / rect.width)  * 100;
-  const yPct   = ((e.clientY - rect.top)  / rect.height) * 100;
+  const { x: xPct, y: yPct } = _gardenPct(e, document.getElementById('screen-garden'));
 
-  // 庭エリア外タップでキャンセル
+  // 庭エリア外でキャンセル
   if (xPct < 0 || xPct > 100 || yPct < 0 || yPct > 100) {
     exitPlaceMode();
     return;
   }
 
-  // 奥行きスケール判定
   const sizeScale = yPct <= DEPTH_THRESHOLD * 100 ? DEPTH_SCALE_FAR : DEPTH_SCALE_NEAR;
 
   const u = await getUser();
-  if (!u.placedItems)  u.placedItems  = [];
-  if (!u.ownedItems)   u.ownedItems   = [];
+  if (!u.placedItems) u.placedItems = [];
+  if (!u.ownedItems)  u.ownedItems  = [];
 
-  // 所持数チェック
   const own = u.ownedItems.find(o => o.itemId === itemId);
   if (!own || own.qty <= 0) { exitPlaceMode(); return; }
 
-  // 所持数を1減らして配置リストに追加
   own.qty -= 1;
   if (own.qty <= 0) u.ownedItems = u.ownedItems.filter(o => o.itemId !== itemId);
   u.placedItems.push({ itemId, x: Math.round(xPct * 10) / 10, y: Math.round(yPct * 10) / 10, sizeScale });
   await saveUser(u);
 
-  // ガイド非表示
   const guide = document.getElementById('housing-guide-msg');
   if (guide) guide.hidden = true;
 
