@@ -128,10 +128,16 @@ body {
 
 /* ===== 庭 時刻帯演出 ===== */
 /* 朝（6〜11時）：薄橙の夜明け空 */
+#screen-garden.time-morning {
+  background: #C8E6F5;
+}
 #screen-garden.time-morning #garden-sky {
   background: linear-gradient(180deg, #F9C96A 0%, #C8E6F5 100%);
 }
 /* 夕（18〜21時）：橙〜紫 */
+#screen-garden.time-evening {
+  background: #7A5080;
+}
 #screen-garden.time-evening #garden-sky {
   background: linear-gradient(180deg, #E8784A 0%, #7A5080 100%);
 }
@@ -139,6 +145,9 @@ body {
   background: linear-gradient(180deg, #8AB060 0%, #2A5020 100%);
 }
 /* 夜（22〜5時）：深紺 */
+#screen-garden.time-night {
+  background: #1A2550;
+}
 #screen-garden.time-night #garden-sky {
   background: linear-gradient(180deg, #0A0E2A 0%, #1A2550 100%);
 }
