@@ -546,11 +546,12 @@ async function renderGarden() {
       isDragging = false;
 
       const rect = gardenScreen.getBoundingClientRect();
+      const yMinPx = GARDEN_Y_MIN / 100 * rect.height;
       const newPx = Math.max(0, Math.min(rect.width  - size, e.clientX - rect.left + dragOffX));
-      const newPy = Math.max(0, Math.min(rect.height - FOOTER_H - size, e.clientY - rect.top  + dragOffY));
+      const newPy = Math.max(yMinPx, Math.min(rect.height - FOOTER_H - size, e.clientY - rect.top  + dragOffY));
       const newX = Math.round((newPx / rect.width)  * 1000) / 10;
       const newY = Math.round((newPy / rect.height) * 1000) / 10;
-      const newScale = newY <= DEPTH_THRESHOLD * 100 ? DEPTH_SCALE_FAR : DEPTH_SCALE_NEAR;
+      const newScale = DEPTH_SCALE_MIN + (newY - GARDEN_Y_MIN) / (100 - GARDEN_Y_MIN) * (DEPTH_SCALE_MAX - DEPTH_SCALE_MIN);
 
       const u = await getUser();
       const target = (u.placedItems ?? []).find(p => p.uid === placed.uid);
@@ -943,10 +944,10 @@ const HOUSING_TOTAL_CAP = 20;
 /** カテゴリ別baseSize（px） */
 const ITEM_BASE_SIZE = { building: 64, plant: 48, item: 36 };
 
-/** 奥行き閾値（庭エリア上部からの割合）・奥エリアはこの値以下 */
-const DEPTH_THRESHOLD = 0.35;
-const DEPTH_SCALE_FAR  = 0.6;
-const DEPTH_SCALE_NEAR = 1.0;
+/** 奥行き：配置可能Y下限（草原上端）・スケール範囲 */
+const GARDEN_Y_MIN      = 33;   // 配置可能エリア上端（%）
+const DEPTH_SCALE_MIN   = 0.5;  // Y=GARDEN_Y_MIN 時のスケール（遠）
+const DEPTH_SCALE_MAX   = 1.5;  // Y=100 時のスケール（近）
 
 /**
  * アイテム定数テーブル
@@ -1994,7 +1995,7 @@ async function _confirmPlace(e) {
   const px = e.clientX - rect.left;
   const py = e.clientY - rect.top;
 
-  // 庭エリア外でキャンセル
+  // 庭エリア外・草原エリア外（空エリア）でキャンセル
   if (px < 0 || px > rect.width || py < 0 || py > rect.height) {
     exitPlaceMode();
     return;
@@ -2003,7 +2004,12 @@ async function _confirmPlace(e) {
   // DB保存用に%変換
   const xPct = Math.round((px / rect.width)  * 1000) / 10;
   const yPct = Math.round((py / rect.height) * 1000) / 10;
-  const sizeScale = yPct <= DEPTH_THRESHOLD * 100 ? DEPTH_SCALE_FAR : DEPTH_SCALE_NEAR;
+
+  // 草原エリア上端より上は配置不可
+  if (yPct < GARDEN_Y_MIN) { exitPlaceMode(); return; }
+
+  // 線形補間でsizeScale算出（GARDEN_Y_MIN=遠×0.5 〜 100=近×1.5）
+  const sizeScale = DEPTH_SCALE_MIN + (yPct - GARDEN_Y_MIN) / (100 - GARDEN_Y_MIN) * (DEPTH_SCALE_MAX - DEPTH_SCALE_MIN);
 
   const u = await getUser();
   if (!u.placedItems) u.placedItems = [];

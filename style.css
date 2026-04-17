@@ -113,7 +113,7 @@ body {
 }
 #garden-sky {
   position: absolute;
-  inset: 0 0 30% 0;
+  inset: 0 0 67% 0;
   background: linear-gradient(180deg, #B8DBF2 0%, var(--color-sky) 100%);
 }
 #garden-ground {
