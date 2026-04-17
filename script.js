@@ -1802,7 +1802,7 @@ function exitPlaceMode() {
   document.body.classList.remove('housing-place-mode');
   if (housingPreviewEl) { housingPreviewEl.remove(); housingPreviewEl = null; }
   const gardenScreen = document.getElementById('screen-garden');
-  document.removeEventListener('mousemove',   onGardenPointerMove);
+  window.removeEventListener('mousemove',      onGardenPointerMove);
   gardenScreen.removeEventListener('pointermove', onGardenPointerMove);
   gardenScreen.removeEventListener('pointerup',   onGardenPointerUp);
   gardenScreen.removeEventListener('pointerdown', onGardenPointerDown);
@@ -1938,8 +1938,8 @@ function enterPlaceMode(item) {
   housingPreviewEl.style.top  = '50%';
 
   const gardenScreen = document.getElementById('screen-garden');
-  // mousemoveはdocumentで取る（子要素が吸収するのを防ぐ）
-  document.addEventListener('mousemove',   onGardenPointerMove);
+  // mousemoveはwindowで取る（子要素による吸収を完全に防ぐ）
+  window.addEventListener('mousemove',   onGardenPointerMove);
   gardenScreen.addEventListener('pointermove', onGardenPointerMove);
   gardenScreen.addEventListener('pointerup',   onGardenPointerUp);
   gardenScreen.addEventListener('pointerdown', onGardenPointerDown);
