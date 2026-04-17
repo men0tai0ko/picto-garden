@@ -58,6 +58,8 @@ function switchScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById(`screen-${name}`);
   if (target) target.classList.add('active');
+  // cage-footer表示制御
+  document.body.classList.toggle('screen-cage', name === 'cage');
   // 画面切替時にステータスパネルを閉じる
   const panel = document.getElementById('pet-panel');
   panel.classList.remove('open');
@@ -222,31 +224,20 @@ async function renderCage() {
   const grid = document.getElementById('cage-grid');
   grid.innerHTML = '';
 
-  // 編集ボタンをscreen-titleの横に配置
+  // タイトル行（編集ボタンなし・シンプル化）
   let titleRow = document.querySelector('#screen-cage .cage-title-row');
   if (!titleRow) {
     const screenCage = document.getElementById('screen-cage');
     const existingTitle = screenCage.querySelector('.screen-title');
     titleRow = document.createElement('div');
     titleRow.className = 'cage-title-row';
-    titleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px';
+    titleRow.style.cssText = 'display:flex;align-items:center;padding:16px 16px 8px';
     const titleEl = document.createElement('h2');
     titleEl.style.cssText = 'font-size:18px;font-weight:700;color:var(--color-text)';
     titleEl.textContent = 'ケージ';
-    const editBtn = document.createElement('button');
-    editBtn.id = 'cage-edit-btn';
-    editBtn.style.cssText = 'font-size:12px;font-weight:700;padding:6px 14px;border-radius:var(--radius-btn);border:none;cursor:pointer';
-    titleRow.append(titleEl, editBtn);
+    titleRow.append(titleEl);
     if (existingTitle) existingTitle.replaceWith(titleRow);
     else screenCage.insertBefore(titleRow, screenCage.firstChild);
-  }
-  // 編集ボタンのラベル・色を現在モードに合わせて更新
-  const editBtn = document.getElementById('cage-edit-btn');
-  if (editBtn) {
-    editBtn.textContent = cageEditMode ? '✅ 完了' : '✏️ 編集';
-    editBtn.style.background = cageEditMode ? 'var(--color-hp)' : 'var(--color-bg)';
-    editBtn.style.color = cageEditMode ? 'var(--color-white)' : 'var(--color-text)';
-    editBtn.onclick = () => { cageEditMode = !cageEditMode; renderCage(); };
   }
 
   const user = await getUser();
@@ -297,31 +288,32 @@ async function renderCage() {
     grid.appendChild(card);
   });
 
-  // 空きスロット（生成画面へのショートカット）
-  const emptySlot = document.createElement('div');
-  emptySlot.className = 'cage-empty-slot';
-  emptySlot.innerHTML = '<span>＋</span><span style="font-size:12px">ペットを生成</span>';
-  emptySlot.addEventListener('click', () => {
-    switchScreen('generate');
-    document.querySelectorAll('.nav-btn').forEach(b => {
-      b.classList.remove('active');  // 生成タブはナビにないため全off
-    });
-  });
-  grid.appendChild(emptySlot);
+  // ===== cage-footer ボタン初期化・状態更新 =====
+  const btnGenerate = document.getElementById('cage-btn-generate');
+  const btnBreed    = document.getElementById('cage-btn-breed');
+  const btnEdit     = document.getElementById('cage-btn-edit');
 
-  // 繁殖ボタン（ペットが2体以上いる場合のみ表示）
-  if (pets.length >= 2) {
-    const breedBtn = document.createElement('button');
-    breedBtn.className = 'btn-primary';
-    breedBtn.style.cssText = 'width:100%;margin:8px 0 4px;font-size:14px;background:var(--color-accent)';
-    breedBtn.textContent = `💞 繁殖する 🪙${50 * user.level}`;
-    breedBtn.addEventListener('click', () => showBreedOverlay(pets, user));
-    // grid は2列のため colspan相当にcolumn-span指定
-    const breedWrap = document.createElement('div');
-    breedWrap.style.cssText = 'grid-column: 1 / -1';
-    breedWrap.appendChild(breedBtn);
-    grid.appendChild(breedWrap);
-  }
+  // 繁殖：ペット2体未満はdisabled
+  btnBreed.disabled = pets.length < 2;
+
+  // 編集：モードに応じてラベル・active切替
+  btnEdit.textContent = '';
+  btnEdit.innerHTML = `${cageEditMode ? '✅' : '✏️'}<span>${cageEditMode ? '完了' : '編集'}</span>`;
+  btnEdit.classList.toggle('active', cageEditMode);
+
+  // イベントは毎回上書きで登録（onclick使用）
+  btnGenerate.onclick = () => {
+    switchScreen('generate');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  };
+  btnBreed.onclick = () => {
+    if (pets.length < 2) return;
+    showBreedOverlay(pets, user);
+  };
+  btnEdit.onclick = () => {
+    cageEditMode = !cageEditMode;
+    renderCage();
+  };
 }
 
 function updateCageCard(card, pet, user) {

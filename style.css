@@ -479,6 +479,40 @@ body {
 }
 
 /* ===== ボトムナビ ===== */
+/* ===== ケージフッター ===== */
+#cage-footer {
+  display: none;
+  position: fixed;
+  bottom: calc(var(--nav-height) + var(--safe-bottom));
+  left: 0; right: 0;
+  height: 52px;
+  background: var(--color-white);
+  border-top: 1.5px solid #EEE;
+  z-index: 90;
+  flex-direction: row;
+  align-items: stretch;
+}
+body.screen-cage #cage-footer { display: flex; }
+.cage-footer-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--color-text);
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.cage-footer-btn span { font-size: 10px; font-weight: 600; }
+.cage-footer-btn:disabled { color: var(--color-text-light); cursor: default; }
+.cage-footer-btn.active { color: var(--color-hp); }
+#cage-grid { padding-bottom: 52px; }
+
 #bottom-nav {
   position: fixed;
   bottom: 0; left: 0; right: 0;
