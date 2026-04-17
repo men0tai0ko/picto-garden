@@ -2043,12 +2043,21 @@ async function syncRarity() {
     '★★ アンコモン': '希少',
     '★ コモン':     '高級',
   };
+  // pet.typeがid（英語）だった場合にlabel（日本語）へ変換
+  const TYPE_ID_TO_LABEL = Object.fromEntries(PET_TYPES.map(t => [t.id, t.label]));
+
   const pets = await getAllPets();
   for (const pet of pets) {
+    let dirty = false;
     if (RARITY_MIGRATION[pet.rarity]) {
       pet.rarity = RARITY_MIGRATION[pet.rarity];
-      await savePet(pet);
+      dirty = true;
     }
+    if (TYPE_ID_TO_LABEL[pet.type]) {
+      pet.type = TYPE_ID_TO_LABEL[pet.type];
+      dirty = true;
+    }
+    if (dirty) await savePet(pet);
   }
 }
 
