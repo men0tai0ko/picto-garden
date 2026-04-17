@@ -157,3 +157,4 @@
 | ケージカードのリネームが未反映 | `updateCageCard()` に `[data-cage-name]` の `textContent` 更新を追加して修正 |
 | 給餌後に繁殖オーバーレイの空腹値が更新されない | `showBreedOverlay` の `render()` を `async` 化し `getAllPets()`・`getUser()` で毎回最新取得に変更 |
 | 庭パネルの水あげ後にケージが未更新 | `panel-water-btn` を `waterPet()` に統一し `renderCage()` を追加 |
+| 餌でHP・MPが回復する | `feedPet()` の `applyGain('hp'/'mp')` を削除し `allCapped` 判定を攻撃・防御のみに変更 |

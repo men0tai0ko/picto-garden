@@ -875,8 +875,8 @@ async function feedPet(pet) {
   // 空腹度回復
   fresh.hunger = Math.min(100, fresh.hunger + FEED_HUNGER_RESTORE);
 
-  // 全ステータスが上限か判定
-  const allCapped = fresh.hp >= STAT_CAP && fresh.mp >= STAT_CAP && fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
+  // 全ステータスが上限か判定（攻撃・防御のみ対象）
+  const allCapped = fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
 
   if (!allCapped) {
     const bonus      = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
@@ -889,8 +889,6 @@ async function feedPet(pet) {
       fresh[stat] = Math.min(STAT_CAP, fresh[stat] + gain);
     };
 
-    applyGain('hp');
-    applyGain('mp');
     applyGain('attack');
     applyGain('defense');
   }
