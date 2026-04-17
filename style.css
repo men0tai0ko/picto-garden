@@ -648,6 +648,7 @@ body.housing-place-mode #garden-deco-btn { color: var(--color-hp); }
   transform-origin: bottom center;
   opacity: 0.6;
   pointer-events: none;
+  z-index: 80;
 }
 
 /* ===== ショップ タブ ===== */

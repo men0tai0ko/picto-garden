@@ -1802,7 +1802,8 @@ function exitPlaceMode() {
   document.body.classList.remove('housing-place-mode');
   if (housingPreviewEl) { housingPreviewEl.remove(); housingPreviewEl = null; }
   const gardenScreen = document.getElementById('screen-garden');
-  window.removeEventListener('mousemove',      onGardenPointerMove);
+  window.removeEventListener('mousemove', onGardenPointerMove);
+  window.removeEventListener('click',     onGardenClick);
   gardenScreen.removeEventListener('pointermove', onGardenPointerMove);
   gardenScreen.removeEventListener('pointerup',   onGardenPointerUp);
   gardenScreen.removeEventListener('pointerdown', onGardenPointerDown);
@@ -1938,8 +1939,9 @@ function enterPlaceMode(item) {
   housingPreviewEl.style.top  = '50%';
 
   const gardenScreen = document.getElementById('screen-garden');
-  // mousemoveはwindowで取る（子要素による吸収を完全に防ぐ）
-  window.addEventListener('mousemove',   onGardenPointerMove);
+  // mousemove・click はwindowで取る（子要素による吸収を防ぐ）
+  window.addEventListener('mousemove', onGardenPointerMove);
+  window.addEventListener('click',     onGardenClick);
   gardenScreen.addEventListener('pointermove', onGardenPointerMove);
   gardenScreen.addEventListener('pointerup',   onGardenPointerUp);
   gardenScreen.addEventListener('pointerdown', onGardenPointerDown);
@@ -1963,16 +1965,23 @@ function onGardenPointerMove(e) {
   housingPreviewEl.style.top  = `${Math.max(0, Math.min(100, y))}%`;
 }
 
-/** pointerdown: スマホ向け配置確定（pointerTypeがtouchのみ） */
+/** PC用：マウスクリックで配置確定（window登録） */
+function onGardenClick(e) {
+  if (!housingPlaceItemId) return;
+  // トレイやフッターのクリックは無視
+  if (e.target.closest('#item-tray') || e.target.closest('#garden-footer')) return;
+  _confirmPlace(e);
+}
+
+/** pointerdown: スマホ（touch）のみ配置確定 */
 function onGardenPointerDown(e) {
   if (e.pointerType !== 'touch') return;
   _confirmPlace(e);
 }
 
-/** pointerup: マウス向け配置確定（pointerTypeがmouseのみ） */
+/** pointerup: 現在未使用（touch は pointerdown で確定済み）。将来拡張用に残す */
 function onGardenPointerUp(e) {
-  if (e.pointerType !== 'mouse') return;
-  _confirmPlace(e);
+  // no-op
 }
 
 /** 配置確定処理（タップ・クリック共通） */
