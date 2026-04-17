@@ -225,7 +225,7 @@ function showGeneratedOverlay(pet) {
 
   overlay.classList.remove('hidden');
 
-  document.getElementById('overlay-ok-btn').onclick = () => {
+  const closeGenerated = () => {
     overlay.classList.add('hidden');
     URL.revokeObjectURL(blobUrl);
     switchScreen('cage');
@@ -233,6 +233,8 @@ function showGeneratedOverlay(pet) {
       b.classList.toggle('active', b.dataset.screen === 'cage');
     });
   };
+  document.getElementById('overlay-ok-btn').onclick = closeGenerated;
+  overlay.onclick = (e) => { if (e.target === overlay) closeGenerated(); };
 }
 
 // ===== ケージ =====
@@ -536,11 +538,13 @@ async function renderGarden() {
 /** パネルが開いているペットID（タイマーからの再描画用） */
 let panelOpenPetId = null;
 
-/** ランダム名称リスト */
+/** ランダム名称リスト（ひらがな形容詞＋カタカナ名詞・petGeneratorと同形式） */
 const RANDOM_PET_NAMES = [
-  'ルナ','ソラ','ミル','フィン','リク','ノア','ハル','ティア',
-  'クロ','シロ','モモ','ユキ','ナギ','コハク','アオ','ライ',
-  'フウ','ミコ','ヒビキ','タマ','ゼン','カイ','レン','サク',
+  'あかいトラ', 'あおいリュウ', 'しろいホシ', 'くろいカゼ', 'きいろヒカリ',
+  'つよいウミ', 'はやいモリ', 'やさしイワ', 'かわいクモ', 'ひかるナミ',
+  'するどキバ', 'こわいツメ', 'しずかタマ', 'おおきホノ', 'ふかいコオリ',
+  'たかいムシ', 'にぎやハナ', 'ちいさツキ', 'にぶいカミ', 'ふるいタイヨ',
+  'くろいリュウ', 'あおいウミ', 'しろいモリ', 'つよいホシ',
 ];
 
 async function showPetPanel(pet) {
@@ -729,6 +733,9 @@ function startHungerTimer() {
       for (const pet of pets) {
         if (pet.hunger <= 0) continue;
         pet.hunger = Math.max(0, pet.hunger - HUNGER_DECREASE_VAL);
+        // 自然回復（空腹度>0のペットのみ）
+        pet.hp = Math.min(STAT_CAP, (pet.hp ?? 0) + 5);
+        pet.mp = Math.min(STAT_CAP, (pet.mp ?? 0) + 5);
         await savePet(pet);
       }
 
@@ -816,9 +823,6 @@ const STAT_GROWTH_MAX = 5;
 /** 餌の空腹回復量 */
 const FEED_HUNGER_RESTORE = 20;
 
-/** 餌のHP回復量 */
-const FEED_HP_RESTORE = 20;
-
 /** ステータス上限 */
 const STAT_CAP = 100;
 
@@ -871,11 +875,8 @@ async function feedPet(pet) {
   // 空腹度回復
   fresh.hunger = Math.min(100, fresh.hunger + FEED_HUNGER_RESTORE);
 
-  // 全ステータスが上限か判定（HP回復前の実値で判定・spec.md 1.5）
+  // 全ステータスが上限か判定
   const allCapped = fresh.hp >= STAT_CAP && fresh.mp >= STAT_CAP && fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
-
-  // HP+20回復（常時）
-  fresh.hp = Math.min(STAT_CAP, fresh.hp + FEED_HP_RESTORE);
 
   if (!allCapped) {
     const bonus      = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
@@ -918,6 +919,7 @@ async function waterPet(pet) {
   const fresh = await getPet(pet.id);
   if (!fresh) return;
   fresh.hp = Math.min(100, fresh.hp + 10);
+  fresh.mp = Math.min(100, fresh.mp + 10);
   await savePet(fresh);
 }
 
@@ -1035,10 +1037,6 @@ async function renderBattle() {
             ${d.label}
           </button>
         `).join('')}
-      </div>
-      <div style="margin-top:8px;font-size:12px;color:var(--color-text-light);display:flex;align-items:center;gap:6px">
-        <span>敵の属性: <strong>${enemyAttr}</strong></span>
-        <span style="color:${affinityColor};font-weight:700">${affinityLabel}</span>
       </div>
       <button id="battle-start-btn" class="btn-primary" style="width:100%;margin-top:10px"${canBlock ? ' disabled' : ''}>
         ⚔️ 訓練開始
@@ -1401,6 +1399,7 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
   document.getElementById('battle-result-ok-btn').onclick = () => {
     overlay.classList.add('hidden');
   };
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.add('hidden'); };
 }
 
 // ===== T5：レベルアップ演出オーバーレイ =====
@@ -1688,13 +1687,15 @@ function showBreedResultOverlay(child) {
     <div style="font-size:11px;color:var(--color-text-light)">HP ${child.hp} / MP ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
   `;
   overlay.classList.remove('hidden');
-  document.getElementById('breed-result-ok-btn').onclick = () => {
+  const closeBreedResult = () => {
     overlay.classList.add('hidden');
     switchScreen('cage');
     document.querySelectorAll('.nav-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.screen === 'cage')
     );
   };
+  document.getElementById('breed-result-ok-btn').onclick = closeBreedResult;
+  overlay.onclick = (e) => { if (e.target === overlay) closeBreedResult(); };
 }
 
 // ===== 進化演出オーバーレイ =====
@@ -1726,6 +1727,7 @@ function showEvolutionOverlay(pet, stage) {
   drawPetToCanvas(pet, document.getElementById('evolution-pet-canvas'), 100, 18);
   overlay.classList.remove('hidden');
   document.getElementById('evolution-ok-btn').onclick = () => overlay.classList.add('hidden');
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.add('hidden'); };
 }
 
 // ===== 図鑑 =====
