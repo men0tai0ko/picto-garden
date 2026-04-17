@@ -608,10 +608,10 @@ async function showPetPanel(pet) {
     btn.disabled = true;
     const fresh = await getPet(pet.id);
     if (!fresh) { btn.disabled = false; return; }
-    fresh.hp = Math.min(100, fresh.hp + 10);
-    await savePet(fresh);
+    await waterPet(fresh);
     await renderStatusBar();
     await renderGarden();
+    await renderCage();
     const updated = await getPet(pet.id);
     if (updated) showPetPanel(updated);
   });
@@ -1559,8 +1559,11 @@ async function showBreedOverlay(pets, user) {
   // 選択状態管理
   let selectedIds = [];
 
-  const render = () => {
-    const cost = BREED_COST_MULTIPLIER * user.level;
+  const render = async () => {
+    // 毎回最新データを取得（給餌等による変化を反映）
+    const latestPets = await getAllPets();
+    const latestUser = await getUser();
+    const cost = BREED_COST_MULTIPLIER * latestUser.level;
     overlay.innerHTML = `
       <div class="overlay-card" style="width:min(340px,92vw);max-height:80vh;overflow-y:auto">
         <h3 style="font-size:16px">💞 繁殖</h3>
@@ -1580,7 +1583,7 @@ async function showBreedOverlay(pets, user) {
     `;
 
     const list = document.getElementById('breed-pet-list');
-    pets.forEach(pet => {
+    latestPets.forEach(pet => {
       const isSelected = selectedIds.includes(pet.id);
       const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
       const row = document.createElement('div');
@@ -1599,13 +1602,13 @@ async function showBreedOverlay(pets, user) {
       `;
 
       if (canSelect) {
-        row.addEventListener('click', () => {
+        row.addEventListener('click', async () => {
           if (isSelected) {
             selectedIds = selectedIds.filter(id => id !== pet.id);
           } else if (selectedIds.length < 2) {
             selectedIds.push(pet.id);
           }
-          render();
+          await render();
         });
       }
       row.append(canvas, info);
@@ -1627,11 +1630,12 @@ async function showBreedOverlay(pets, user) {
         btn.disabled = false; btn.textContent = '繁殖！'; return;
       }
 
-      // 通貨消費
-      const cost = BREED_COST_MULTIPLIER * user.level;
-      const { ok } = await spendCurrency(cost);
+      // 通貨消費（最新userで計算）
+      const currentUser = await getUser();
+      const currentCost = BREED_COST_MULTIPLIER * currentUser.level;
+      const { ok } = await spendCurrency(currentCost);
       if (!ok) {
-        alert(`通貨が足りません（必要: 🪙${cost}）`);
+        alert(`通貨が足りません（必要: 🪙${currentCost}）`);
         btn.disabled = false; btn.textContent = '繁殖！'; return;
       }
 
@@ -1652,7 +1656,7 @@ async function showBreedOverlay(pets, user) {
     };
   };
 
-  render();
+  await render();
   overlay.classList.remove('hidden');
 }
 

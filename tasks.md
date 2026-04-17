@@ -150,3 +150,5 @@
 | ナビゲーション全画面不到達 | `renderBattle()` 内で `canBlock` をdiffHTML生成後に定義していたため参照エラー発生→定義を `diffHTML` 生成前に移動して修正 |
 | 旧rarity文字列（★表記）の互換 | 起動時 `syncRarity()` で旧キーを新呼称に一括変換、既存データの成長確率が ?? フォールバックになる問題を解消 |
 | ケージカードのリネームが未反映 | `updateCageCard()` に `[data-cage-name]` の `textContent` 更新を追加して修正 |
+| 給餌後に繁殖オーバーレイの空腹値が更新されない | `showBreedOverlay` の `render()` を `async` 化し `getAllPets()`・`getUser()` で毎回最新取得に変更 |
+| 庭パネルの水あげ後にケージが未更新 | `panel-water-btn` を `waterPet()` に統一し `renderCage()` を追加 |
