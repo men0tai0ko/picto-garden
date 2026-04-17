@@ -652,10 +652,8 @@ async function showPetPanel(pet) {
     await renderGarden();
     showPetPanel(fresh);
     // ケージカードの名前を即時反映
-    const cageScreen = document.getElementById('screen-cage');
-    const card = cageScreen.querySelector(`[data-cage-card="${pet.id}"]`);
-    const u = await getUser();
-    if (card) updateCageCard(card, fresh, u);
+    const cageNameEl = document.querySelector(`[data-cage-card="${pet.id}"] [data-cage-name]`);
+    if (cageNameEl) cageNameEl.textContent = fresh.name ?? fresh.type;
   });
 
   // リネームボタン
@@ -684,10 +682,8 @@ async function showPetPanel(pet) {
         await renderGarden();
         showPetPanel(fresh);
         // ケージカードの名前を即時反映
-        const cageScreen = document.getElementById('screen-cage');
-        const card = cageScreen.querySelector(`[data-cage-card="${pet.id}"]`);
-        const u = await getUser();
-        if (card) updateCageCard(card, fresh, u);
+        const cageNameEl = document.querySelector(`[data-cage-card="${pet.id}"] [data-cage-name]`);
+        if (cageNameEl) cageNameEl.textContent = fresh.name ?? fresh.type;
       }
     };
     input.addEventListener('blur',    commit);
