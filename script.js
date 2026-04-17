@@ -394,7 +394,7 @@ function cageStatBarHTML(pet) {
       </div>
     </div>
     <div style="margin-top:4px">
-      <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">空腹 ${pet.hunger}</div>
+      <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">満腹 ${pet.hunger}</div>
       <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hunger" style="width:${c(pet.hunger, 100)}%"></div></div>
     </div>
   `;
@@ -443,7 +443,7 @@ async function showEvictDialog(user, incomingPetId, incomingCard) {
 
     const sub = document.createElement('div');
     sub.style.cssText = 'font-size:10px;color:var(--color-text-light)';
-    sub.textContent = `HP ${pet.hp} / 空腹 ${pet.hunger}`;
+    sub.textContent = `HP ${pet.hp} / 満腹 ${pet.hunger}`;
     info.appendChild(sub);
 
     row.append(canvas, info);
@@ -695,7 +695,7 @@ async function showPetPanel(pet) {
       ${statBar('攻撃',  pet.attack, 'atk', pet.statCaps?.attack  ?? 100)}
       ${statBar('防御',  pet.defense,'def', pet.statCaps?.defense ?? 100)}
     </div>
-    ${statBar('空腹度', pet.hunger, 'hunger')}
+    ${statBar('満腹度', pet.hunger, 'hunger')}
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
       <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px">🍖 餌 🪙${price}</button>
       <button class="btn-primary" id="panel-water-btn" style="padding:10px 20px;font-size:14px;background:var(--color-mp)">💧 おみず</button>
@@ -829,9 +829,9 @@ async function showPetPanel(pet) {
   };
 }
 
-// ===== 空腹度時間経過減少（tasks.md 改善提案・仕様#8） =====
+// ===== 満腹度時間経過減少（tasks.md 改善提案・仕様#8） =====
 
-/** 空腹度減少間隔（ms）・1回の減少量 */
+/** 満腹度減少間隔（ms）・1回の減少量 */
 const HUNGER_INTERVAL_MS  = 5 * 60 * 1000; // 5分
 const HUNGER_DECREASE_VAL = 5;
 
@@ -843,7 +843,7 @@ const IDLE_INCOME_CAP     = 50;
 const GARDEN_SLOT_LEVELS = [10, 20, 30, 40];
 const GARDEN_SLOT_MAX    = 5;
 
-/** 起動時に開始。全ペットの空腹度を定期減算しIndexedDB保存 */
+/** 起動時に開始。全ペットの満腹度を定期減算しIndexedDB保存 */
 function startHungerTimer() {
   setInterval(async () => {
     try {
@@ -851,7 +851,7 @@ function startHungerTimer() {
       for (const pet of pets) {
         if (pet.hunger <= 0) continue;
         pet.hunger = Math.max(0, pet.hunger - HUNGER_DECREASE_VAL);
-        // 自然回復（空腹度>0のペットのみ・個性上限反映）
+        // 自然回復（満腹度>0のペットのみ・個性上限反映）
         const hpCap = pet.statCaps?.hp ?? STAT_CAP;
         const mpCap = pet.statCaps?.mp ?? STAT_CAP;
         pet.hp = Math.min(hpCap, (pet.hp ?? 0) + 5);
@@ -861,7 +861,7 @@ function startHungerTimer() {
 
       // ===== 放置収益 =====
       const user = await getUser();
-      // 庭在中かつ空腹度 > 0 のペット数をカウント
+      // 庭在中かつ満腹度 > 0 のペット数をカウント
       const activeCount = user.gardenPetIds.filter(id => {
         const pet = pets.find(p => p.id === id);
         return pet && pet.hunger > 0;
@@ -888,7 +888,7 @@ function startHungerTimer() {
         }
       }
     } catch (err) {
-      console.error('空腹度タイマーエラー:', err);
+      console.error('満腹度タイマーエラー:', err);
     }
   }, HUNGER_INTERVAL_MS);
 }
@@ -940,7 +940,7 @@ const RARITY_GROWTH_PROB = {
 const STAT_GROWTH_MIN = 1;
 const STAT_GROWTH_MAX = 5;
 
-/** 餌の空腹回復量 */
+/** 餌の満腹回復量 */
 const FEED_HUNGER_RESTORE = 20;
 
 /** ステータス上限 */
@@ -1185,7 +1185,7 @@ async function feedPet(pet) {
   const fresh = await getPet(pet.id);
   if (!fresh) return { ok: false, message: 'ペットデータが見つかりません' };
 
-  // 空腹度回復
+  // 満腹度回復
   fresh.hunger = Math.min(100, fresh.hunger + FEED_HUNGER_RESTORE);
 
   // ステータス上限（個性反映：statCapsがあれば使用、なければSTAT_CAP）
@@ -1370,7 +1370,7 @@ async function renderBattle() {
       <div style="font-size:13px;font-weight:700;color:var(--color-text-light);margin-bottom:8px">ペット選択</div>
       <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px">
         ${pets.map(p => {
-          const warn = p.hp <= 0 ? '⚠️HP0' : p.hunger <= 0 ? '⚠️空腹' : '';
+          const warn = p.hp <= 0 ? '⚠️HP0' : p.hunger <= 0 ? '⚠️満腹度低' : '';
           return `
           <div class="cage-card${p.id === battleState.petId ? ' in-garden' : ''}"
                style="min-width:80px;padding:8px"
@@ -1387,7 +1387,7 @@ async function renderBattle() {
 
   // 選択ペットのステータス表示
   const canBlock = selectedPet.hp <= 0 ? 'HP0のため訓練不可（餌で回復）'
-                 : selectedPet.hunger <= 0 ? '空腹度0のため訓練不可（餌で回復）'
+                 : selectedPet.hunger <= 0 ? '満腹度0のため訓練不可（餌で回復）'
                  : null;
 
   // 難易度選択セクション
@@ -1753,7 +1753,7 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
 
   // 停止理由ラベル
   const stopLabel = stopReason === 'hp0'     ? '⚠️ HPが0になりました'
-                  : stopReason === 'hunger0' ? '⚠️ 空腹度が0になりました'
+                  : stopReason === 'hunger0' ? '⚠️ 満腹度が0になりました'
                   : '🛑 中断しました';
   const stopColor = stopReason === 'aborted' ? 'var(--color-text-light)' : 'var(--color-hp)';
 
@@ -2201,7 +2201,7 @@ async function _renderBreedArea() {
 
   area.innerHTML = `
     <p style="font-size:12px;color:var(--color-text-light);padding:0 16px;margin-bottom:10px">
-      2体選択・空腹度${BREED_HUNGER_MIN}以上・進化${BREED_EVOLUTION_MIN}段階以上が必要 / 🪙${cost}
+      2体選択・満腹度${BREED_HUNGER_MIN}以上・進化${BREED_EVOLUTION_MIN}段階以上が必要 / 🪙${cost}
     </p>
     <div id="breed-pet-list" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 16px"></div>
   `;
@@ -2235,7 +2235,7 @@ async function _renderBreedArea() {
 
     const sub = document.createElement('div');
     sub.style.cssText = 'font-size:10px;color:var(--color-text-light);text-align:center';
-    sub.textContent = `${pet.type} / 空腹${pet.hunger}`;
+    sub.textContent = `${pet.type} / 満腹${pet.hunger}`;
 
     const check = document.createElement('div');
     check.style.cssText = `position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:50%;border:2px solid ${isSelected ? 'var(--color-main)' : '#CCC'};background:${isSelected ? 'var(--color-main)' : 'transparent'};display:flex;align-items:center;justify-content:center`;
@@ -2342,7 +2342,7 @@ async function showBreedOverlay(pets, user) {
       <div class="overlay-card" style="width:min(340px,92vw);max-height:80vh;overflow-y:auto">
         <h3 style="font-size:16px">💞 繁殖</h3>
         <p style="font-size:12px;color:var(--color-text-light);margin-top:-6px">
-          2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
+          2体選択・満腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
         </p>
         <div id="breed-pet-list" style="display:flex;flex-direction:column;gap:8px;width:100%;margin:10px 0"></div>
         <div style="display:flex;gap:8px;width:100%;margin-top:4px">
@@ -2372,7 +2372,7 @@ async function showBreedOverlay(pets, user) {
       info.style.cssText = 'flex:1;min-width:0';
       info.innerHTML = `
         <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
-        <div style="font-size:10px;color:var(--color-text-light)">${pet.type} / 空腹${pet.hunger}</div>
+        <div style="font-size:10px;color:var(--color-text-light)">${pet.type} / 満腹${pet.hunger}</div>
       `;
 
       if (canSelect) {
