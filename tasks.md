@@ -99,6 +99,7 @@
 | A | 見た目変化（アイコンのフレーム色変化・evolutionStage） | ✅実装済み |
 | B | 放置収益 | ✅実装済み |
 | B | 庭スロット拡張 | ✅実装済み |
+| C | 庭の時刻帯演出（朝/昼/夕/夜） | ✅実装済み |
 
 ---
 
@@ -166,6 +167,17 @@
 | 訓練画面ステータスカードに給餌ボタン・満腹ゲージ・2列ステータス表示を追加 | ✅実装済み |
 | 訓練開始ボタンを敵属性直下に移動 | ✅実装済み |
 | 庭パネルの属性・等級をバッジ化（青・赤）、HP〜防御を2列グリッド化 | ✅実装済み |
+
+---
+
+## T11：庭時刻帯演出
+
+- [x] getCurrentTimeSlot()：時刻→時刻帯クラス名（4区分）を返す
+- [x] applyGardenTime()：`#screen-garden` の `time-*` クラスを付け替える
+- [x] switchScreen()に庭進入時interval開始・離脱時clearIntervalを追加
+- [x] style.css：`#garden-sky` / `#garden-ground` に `transition: background 3s ease` 追加
+- [x] style.css：時刻帯クラス4種（morning/noon/evening/night）を `#screen-garden` スコープで定義
+- [x] style.css：`.time-night #garden-sky::after` で星を `box-shadow` 疑似要素として静的配置
 
 ---
 
