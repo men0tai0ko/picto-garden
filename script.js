@@ -8,7 +8,7 @@
  */
 
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet, syncHousingData } from './state.js';
-import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP } from './petGenerator.js';
+import { generatePetFromImage, PET_TYPES, PERSONALITIES, SKILLS, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
@@ -683,7 +683,7 @@ async function showPetPanel(pet) {
         </div>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${pet.skill ?? '—'}</div>
+    <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${SKILLS.find(s => s.id === pet.skill)?.label ?? pet.skill ?? '—'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
       ${statBar('HP',    pet.hp,     'hp')}
       ${statBar('MP',    pet.mp,     'mp')}
@@ -1414,6 +1414,7 @@ async function renderBattle() {
         ${statBar('防御', selectedPet.defense, 'def')}
       </div>
       ${statBar('満腹度', selectedPet.hunger, 'hunger')}
+      <div style="font-size:11px;color:var(--color-mp);margin:6px 0 0">✨ スキル: ${SKILLS.find(s => s.id === selectedPet.skill)?.label ?? selectedPet.skill ?? '—'}</div>
       <div style="display:flex;gap:6px;margin-top:10px">
         <button id="battle-feed-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0">🍖 餌 🪙${price}</button>
         <button id="battle-water-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0;background:var(--color-mp)">💧 水</button>
