@@ -1956,7 +1956,8 @@ function _gardenPct(e, gardenEl) {
 /** プレビューをポインタ位置に追従（mousemove / pointermove 共用） */
 function onGardenPointerMove(e) {
   if (!housingPreviewEl || !housingPlaceItemId) return;
-  const { x, y } = _gardenPct(e, e.currentTarget);
+  const gardenEl = document.getElementById('screen-garden');
+  const { x, y } = _gardenPct(e, gardenEl);
   housingPreviewEl.style.left = `${x}%`;
   housingPreviewEl.style.top  = `${y}%`;
 }
