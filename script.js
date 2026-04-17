@@ -663,6 +663,9 @@ async function showPetPanel(pet) {
     // ケージカードの名前を即時反映
     const cageNameEl = document.querySelector(`[data-cage-card="${pet.id}"] [data-cage-name]`);
     if (cageNameEl) cageNameEl.textContent = fresh.name ?? fresh.type;
+    // 繁殖カードの名前を即時反映
+    const breedNameEl = document.querySelector(`[data-breed-card="${pet.id}"] [data-breed-name]`);
+    if (breedNameEl) breedNameEl.textContent = fresh.name ?? fresh.type;
   });
 
   // リネームボタン
@@ -693,6 +696,9 @@ async function showPetPanel(pet) {
         // ケージカードの名前を即時反映
         const cageNameEl = document.querySelector(`[data-cage-card="${pet.id}"] [data-cage-name]`);
         if (cageNameEl) cageNameEl.textContent = fresh.name ?? fresh.type;
+        // 繁殖カードの名前を即時反映
+        const breedNameEl = document.querySelector(`[data-breed-card="${pet.id}"] [data-breed-name]`);
+        if (breedNameEl) breedNameEl.textContent = fresh.name ?? fresh.type;
       }
     };
     input.addEventListener('blur',    commit);
@@ -1618,7 +1624,7 @@ async function renderBreed() {
     const info = document.createElement('div');
     info.style.cssText = 'width:100%;text-align:center;min-width:0';
     info.innerHTML = `
-      <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
+      <div data-breed-name="1" style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
       <div style="font-size:10px;color:var(--color-text-light)">空腹${pet.hunger}</div>
     `;
 
