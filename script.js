@@ -54,6 +54,7 @@ function wrapWithGenerationBadge(iconEl, generation) {
     initNavigation();
     initGenerateScreen();
     initGardenFooter();
+    initCageFooterCancelButtons();
     switchScreen('garden');
     startHungerTimer();
   } catch (err) {
@@ -81,8 +82,10 @@ function switchScreen(name) {
   const target = document.getElementById(`screen-${name}`);
   if (target) target.classList.add('active');
   // フッター表示制御
-  document.body.classList.toggle('screen-cage',   name === 'cage');
-  document.body.classList.toggle('screen-garden', name === 'garden');
+  document.body.classList.toggle('screen-cage',     name === 'cage');
+  document.body.classList.toggle('screen-garden',   name === 'garden');
+  document.body.classList.toggle('screen-generate', name === 'generate');
+  document.body.classList.toggle('screen-breed',    name === 'breed');
   // 庭以外に切替時はトレイ・配置モードを閉じる
   if (name !== 'garden') closeItemTray();
   // 画面切替時にステータスパネルを閉じる
@@ -335,7 +338,9 @@ async function renderCage() {
   };
   btnBreed.onclick = () => {
     if (pets.length < 2) return;
-    showBreedOverlay(pets, user);
+    switchScreen('breed');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    renderBreedScreen();
   };
   btnEdit.onclick = () => {
     cageEditMode = !cageEditMode;
@@ -781,6 +786,7 @@ async function showPetPanel(pet) {
         fresh.name = newName;
         await savePet(fresh);
         await renderGarden();
+        await renderCage();
         showPetPanel(fresh);
       }
     };
@@ -843,9 +849,11 @@ function startHungerTimer() {
       for (const pet of pets) {
         if (pet.hunger <= 0) continue;
         pet.hunger = Math.max(0, pet.hunger - HUNGER_DECREASE_VAL);
-        // 自然回復（空腹度>0のペットのみ）
-        pet.hp = Math.min(STAT_CAP, (pet.hp ?? 0) + 5);
-        pet.mp = Math.min(STAT_CAP, (pet.mp ?? 0) + 5);
+        // 自然回復（空腹度>0のペットのみ・個性上限反映）
+        const hpCap = pet.statCaps?.hp ?? STAT_CAP;
+        const mpCap = pet.statCaps?.mp ?? STAT_CAP;
+        pet.hp = Math.min(hpCap, (pet.hp ?? 0) + 5);
+        pet.mp = Math.min(mpCap, (pet.mp ?? 0) + 5);
         await savePet(pet);
       }
 
@@ -1178,18 +1186,21 @@ async function feedPet(pet) {
   // 空腹度回復
   fresh.hunger = Math.min(100, fresh.hunger + FEED_HUNGER_RESTORE);
 
+  // ステータス上限（個性反映：statCapsがあれば使用、なければSTAT_CAP）
+  const caps = fresh.statCaps ?? { hp: STAT_CAP, mp: STAT_CAP, attack: STAT_CAP, defense: STAT_CAP };
+
   // 全ステータスが上限か判定（攻撃・防御のみ対象）
-  const allCapped = fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
+  const allCapped = fresh.attack >= caps.attack && fresh.defense >= caps.defense;
 
   if (!allCapped) {
     const bonus      = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
     const growthProb = RARITY_GROWTH_PROB[fresh.rarity] ?? RARE_GROWTH_PROB;
 
     const applyGain = (stat) => {
-      if (fresh[stat] >= STAT_CAP) return;
+      if (fresh[stat] >= caps[stat]) return;
       const isBonusStat = bonus.stat === stat || bonus.stat === 'all';
       const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult, growthProb);
-      fresh[stat] = Math.min(STAT_CAP, fresh[stat] + gain);
+      fresh[stat] = Math.min(caps[stat], fresh[stat] + gain);
     };
 
     applyGain('attack');
@@ -1417,7 +1428,7 @@ async function renderBattle() {
       ${statBar('満腹度', selectedPet.hunger, 'hunger')}
       <div style="display:flex;gap:6px;margin-top:10px">
         <button id="battle-feed-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0">🍖 餌 🪙${price}</button>
-        <button id="battle-water-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0;background:var(--color-mp)">💧 水</button>
+        <button id="battle-water-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0;background:var(--color-mp)">💧 おみず</button>
       </div>
       ${canBlock ? `<p style="color:var(--color-hp);font-size:12px;margin-top:8px;text-align:center">${canBlock}</p>` : ''}
     </div>
@@ -1466,14 +1477,14 @@ async function renderBattle() {
     const result = await feedPet(fresh);
     if (!result.ok) { alert(result.message); btn.disabled = false; return; }
     const updated = await getPet(battleState.petId);
-    const logEl = document.getElementById('battle-log');
-    const scrollTop = logEl ? logEl.scrollTop : 0;
+    const screen = document.getElementById('screen-battle');
+    const screenScroll = screen ? screen.scrollTop : 0;
     await renderBattle();
     await renderStatusBar();
     await renderCage();
     await renderGarden();
-    const logElAfter = document.getElementById('battle-log');
-    if (logElAfter) logElAfter.scrollTop = scrollTop;
+    const screenAfter = document.getElementById('screen-battle');
+    if (screenAfter) screenAfter.scrollTop = screenScroll;
     if (result.evolved && updated) showEvolutionOverlay(updated, result.evolutionStage);
   });
 
@@ -1484,14 +1495,14 @@ async function renderBattle() {
     const fresh = await getPet(battleState.petId);
     if (!fresh) { btn.disabled = false; return; }
     await waterPet(fresh);
-    const logEl = document.getElementById('battle-log');
-    const scrollTop = logEl ? logEl.scrollTop : 0;
+    const screen = document.getElementById('screen-battle');
+    const screenScroll = screen ? screen.scrollTop : 0;
     await renderBattle();
     await renderStatusBar();
     await renderCage();
     await renderGarden();
-    const logElAfter = document.getElementById('battle-log');
-    if (logElAfter) logElAfter.scrollTop = scrollTop;
+    const screenAfter = document.getElementById('screen-battle');
+    if (screenAfter) screenAfter.scrollTop = screenScroll;
   });
 
   // ペット選択クリック
@@ -2149,6 +2160,134 @@ function showReleaseConfirmDialog(pet) {
     await renderCage();
     await renderGarden();
   };
+}
+
+// ===== ケージフッター キャンセル・繁殖実行ボタン初期化 =====
+
+function initCageFooterCancelButtons() {
+  document.getElementById('generate-footer-cancel').onclick = () => {
+    switchScreen('cage');
+    document.querySelectorAll('.nav-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.screen === 'cage')
+    );
+  };
+  document.getElementById('breed-footer-cancel').onclick = () => {
+    switchScreen('cage');
+    document.querySelectorAll('.nav-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.screen === 'cage')
+    );
+  };
+}
+
+// ===== 繁殖専用画面 =====
+
+let breedSelectedIds = [];
+
+async function renderBreedScreen() {
+  breedSelectedIds = [];
+  await _renderBreedArea();
+}
+
+async function _renderBreedArea() {
+  const area = document.getElementById('breed-area');
+  if (!area) return;
+  const pets = await getAllPets();
+  const user = await getUser();
+  const cost = BREED_COST_MULTIPLIER * user.level;
+
+  area.innerHTML = `
+    <p style="font-size:12px;color:var(--color-text-light);padding:0 16px;margin-bottom:12px">
+      2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
+    </p>
+    <div id="breed-pet-list" style="display:flex;flex-direction:column;gap:8px;padding:0 16px 80px"></div>
+  `;
+
+  const list = document.getElementById('breed-pet-list');
+  pets.forEach(pet => {
+    const isSelected = breedSelectedIds.includes(pet.id);
+    const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
+    const row = document.createElement('div');
+    row.style.cssText = `display:flex;align-items:center;gap:10px;background:${isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-white)'};border-radius:12px;padding:10px 12px;cursor:${canSelect ? 'pointer' : 'default'};border:2px solid ${isSelected ? 'var(--color-main)' : 'transparent'};opacity:${canSelect ? '1' : '0.45'};box-shadow:var(--shadow)`;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 48; canvas.height = 48;
+    canvas.style.cssText = 'border-radius:10px;flex-shrink:0';
+    drawPetToCanvas(pet, canvas, 48, 8);
+
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0';
+    info.innerHTML = `
+      <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
+      <div style="font-size:11px;color:var(--color-text-light)">${pet.type} / 空腹${pet.hunger}</div>
+    `;
+
+    const check = document.createElement('div');
+    check.style.cssText = `width:22px;height:22px;border-radius:50%;border:2px solid ${isSelected ? 'var(--color-main)' : '#CCC'};background:${isSelected ? 'var(--color-main)' : 'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0`;
+    check.textContent = isSelected ? '✓' : '';
+    check.style.color = 'white';
+    check.style.fontSize = '13px';
+
+    if (canSelect) {
+      row.addEventListener('click', async () => {
+        if (isSelected) {
+          breedSelectedIds = breedSelectedIds.filter(id => id !== pet.id);
+        } else if (breedSelectedIds.length < 2) {
+          breedSelectedIds.push(pet.id);
+        }
+        await _renderBreedArea();
+        _updateBreedExecBtn();
+      });
+    }
+    row.append(canvas, info, check);
+    list.appendChild(row);
+  });
+
+  _updateBreedExecBtn();
+}
+
+function _updateBreedExecBtn() {
+  const btn = document.getElementById('breed-footer-exec');
+  if (!btn) return;
+  btn.disabled = breedSelectedIds.length !== 2;
+  btn.onclick = breedSelectedIds.length === 2 ? _execBreed : null;
+}
+
+async function _execBreed() {
+  const btn = document.getElementById('breed-footer-exec');
+  if (btn) { btn.disabled = true; }
+
+  const allPets = await getAllPets();
+  if (allPets.length >= BREED_PET_CAP) {
+    alert(`ペットの所持上限（${BREED_PET_CAP}体）に達しています`);
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const user = await getUser();
+  const cost = BREED_COST_MULTIPLIER * user.level;
+  const { ok } = await spendCurrency(cost);
+  if (!ok) {
+    alert(`通貨が足りません（必要: 🪙${cost}）`);
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const [pA, pB] = await Promise.all([getPet(breedSelectedIds[0]), getPet(breedSelectedIds[1])]);
+  if (!pA || !pB) { if (btn) btn.disabled = false; return; }
+
+  const inheritedBlob = Math.random() < 0.5 ? pA.imageData : pB.imageData;
+  const child = breedPet(pA, pB, inheritedBlob);
+  await registerNewPet(child);
+
+  breedSelectedIds = [];
+  switchScreen('cage');
+  document.querySelectorAll('.nav-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.screen === 'cage')
+  );
+  await renderStatusBar();
+  await renderEncyclopedia();
+  await renderCage();
+  showBreedResultOverlay(child);
 }
 
 // ===== 繁殖オーバーレイ =====
