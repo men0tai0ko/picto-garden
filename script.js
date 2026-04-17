@@ -717,6 +717,7 @@ async function showPetPanel(pet) {
     if (!result.ok) { alert(result.message); btn.disabled = false; return; }
     await renderStatusBar();
     await renderGarden();
+    if (document.body.classList.contains('screen-breed')) await _renderBreedArea();
     const updated = await getPet(pet.id);
     if (updated) showPetPanel(updated);
     if (result.evolved) showEvolutionOverlay(updated ?? fresh, result.evolutionStage);
@@ -731,6 +732,7 @@ async function showPetPanel(pet) {
     await renderStatusBar();
     await renderGarden();
     await renderCage();
+    if (document.body.classList.contains('screen-breed')) await _renderBreedArea();
     const updated = await getPet(pet.id);
     if (updated) showPetPanel(updated);
   });
@@ -2230,8 +2232,11 @@ async function _renderBreedArea() {
     check.style.color = 'white';
     check.style.fontSize = '11px';
 
+    // チェックボックス：選択トグル
     if (canSelect) {
-      card.addEventListener('click', async () => {
+      check.style.cursor = 'pointer';
+      check.addEventListener('click', async (e) => {
+        e.stopPropagation();
         if (isSelected) {
           breedSelectedIds = breedSelectedIds.filter(id => id !== pet.id);
         } else if (breedSelectedIds.length < 2) {
@@ -2241,6 +2246,11 @@ async function _renderBreedArea() {
         _updateBreedExecBtn();
       });
     }
+
+    // カード本体：ステータスパネル表示（庭・ケージと同仕様）
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', () => showPetPanel(pet));
+
     card.append(canvas, name, sub, check);
     list.appendChild(card);
   });
