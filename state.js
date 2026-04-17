@@ -82,6 +82,10 @@ export async function syncHousingData() {
   if (!user.gardenPetPositions || typeof user.gardenPetPositions !== 'object') {
     user.gardenPetPositions = {}; dirty = true;
   }
+  // 既存placedItemsにuidがない場合に補完
+  for (const item of user.placedItems) {
+    if (!item.uid) { item.uid = `${Date.now()}_${Math.random()}`; dirty = true; }
+  }
   if (dirty) await saveUser(user);
 }
 

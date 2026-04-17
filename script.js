@@ -475,14 +475,11 @@ async function renderGarden() {
     const size = Math.round(baseSize * placed.sizeScale);
     const el = document.createElement('div');
     el.className = 'garden-item';
-    el.dataset.placedId = placed.itemId + '_' + placed.x + '_' + placed.y;
+    el.dataset.uid = placed.uid;
     el.innerHTML = def.svg;
     el.querySelector('svg').style.cssText = `width:${size}px;height:${size}px;display:block`;
-    // 初期位置：%をpxに変換して設定（renderGarden時点のrectを使用）
-    const gRect = gardenScreen.getBoundingClientRect();
-    const initPx = placed.x / 100 * gRect.width;
-    const initPy = placed.y / 100 * gRect.height;
-    el.style.cssText = `left:${initPx}px;top:${initPy}px;z-index:${Math.round(placed.y * 1.5 + 10)}`;
+    // 初期位置：%指定（getBoundingClientRect不要・非表示時でも正確）
+    el.style.cssText = `left:${placed.x}%;top:${placed.y}%;z-index:${Math.round(placed.y * 1.5 + 10)}`;
 
     // ポインタダウン → 長押し削除 / ドラッグ移動 の判別
     let pressTimer  = null;
@@ -495,16 +492,14 @@ async function renderGarden() {
       e.stopPropagation();
       isDragging = false;
       const rect = gardenScreen.getBoundingClientRect();
-      // px基準でオフセット記録（アイテム現在位置px - カーソルpx）
-      dragOffX = parseFloat(el.style.left) - (e.clientX - rect.left);
-      dragOffY = parseFloat(el.style.top)  - (e.clientY - rect.top);
+      // %指定の現在位置をpxに変換してオフセット計算
+      dragOffX = (parseFloat(el.style.left) / 100 * rect.width)  - (e.clientX - rect.left);
+      dragOffY = (parseFloat(el.style.top)  / 100 * rect.height) - (e.clientY - rect.top);
 
       pressTimer = setTimeout(async () => {
         isDragging = false;
         const u = await getUser();
-        const idx = (u.placedItems ?? []).findIndex(
-          p => p.itemId === placed.itemId && p.x === placed.x && p.y === placed.y
-        );
+        const idx = (u.placedItems ?? []).findIndex(p => p.uid === placed.uid);
         if (idx >= 0) {
           u.placedItems.splice(idx, 1);
           const own = u.ownedItems?.find(o => o.itemId === placed.itemId);
@@ -531,8 +526,10 @@ async function renderGarden() {
         pressTimer = null;
       }
       if (isDragging) {
-        el.style.left = `${Math.max(0, Math.min(rect.width,  curPx + dragOffX))}px`;
-        el.style.top  = `${Math.max(0, Math.min(rect.height, curPy + dragOffY))}px`;
+        const newPx = Math.max(0, Math.min(rect.width,  curPx + dragOffX));
+        const newPy = Math.max(0, Math.min(rect.height, curPy + dragOffY));
+        el.style.left = `${newPx / rect.width  * 100}%`;
+        el.style.top  = `${newPy / rect.height * 100}%`;
       }
     };
 
@@ -551,9 +548,7 @@ async function renderGarden() {
       const newScale = newY <= DEPTH_THRESHOLD * 100 ? DEPTH_SCALE_FAR : DEPTH_SCALE_NEAR;
 
       const u = await getUser();
-      const target = (u.placedItems ?? []).find(
-        p => p.itemId === placed.itemId && p.x === placed.x && p.y === placed.y
-      );
+      const target = (u.placedItems ?? []).find(p => p.uid === placed.uid);
       if (target) {
         target.x = newX;
         target.y = newY;
@@ -1802,11 +1797,11 @@ function exitPlaceMode() {
   housingPlaceItemId = null;
   document.body.classList.remove('housing-place-mode');
   if (housingPreviewEl) { housingPreviewEl.remove(); housingPreviewEl = null; }
-  const gardenScreen = document.getElementById('screen-garden');
+  const guide = document.getElementById('housing-guide-msg');
+  if (guide) guide.hidden = true;
   window.removeEventListener('mousemove', onGardenPointerMove);
   window.removeEventListener('click',     onGardenClick);
-  gardenScreen.removeEventListener('pointermove', onGardenPointerMove);
-  gardenScreen.removeEventListener('pointerup',   onGardenPointerUp);
+  const gardenScreen = document.getElementById('screen-garden');
   gardenScreen.removeEventListener('pointerdown', onGardenPointerDown);
 }
 
@@ -1916,36 +1911,34 @@ async function renderTrayItems() {
 function enterPlaceMode(item) {
   document.body.classList.add('housing-place-mode');
 
-  // プレビュー要素生成
-  const baseSize  = ITEM_BASE_SIZE[item.category] ?? 48;
+  // プレビュー要素をbody直下・position:fixedで生成（座標変換不要）
+  const baseSize = ITEM_BASE_SIZE[item.category] ?? 48;
   housingPreviewEl = document.createElement('div');
   housingPreviewEl.className = 'garden-item-preview';
+  housingPreviewEl.style.position = 'fixed';
   housingPreviewEl.innerHTML = item.svg;
   housingPreviewEl.querySelector('svg').style.cssText = `width:${baseSize}px;height:${baseSize}px;display:block`;
-  document.getElementById('screen-garden').appendChild(housingPreviewEl);
+  document.body.appendChild(housingPreviewEl);
+
+  // 初期位置：画面中央
+  housingPreviewEl.style.left = `${window.innerWidth  / 2}px`;
+  housingPreviewEl.style.top  = `${window.innerHeight / 2}px`;
 
   // ガイドメッセージ
   let guide = document.getElementById('housing-guide-msg');
   if (!guide) {
     guide = document.createElement('div');
     guide.id = 'housing-guide-msg';
-    guide.style.cssText = 'position:absolute;top:12%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:12px;font-weight:700;padding:6px 16px;border-radius:999px;pointer-events:none;z-index:60;white-space:nowrap';
-    document.getElementById('screen-garden').appendChild(guide);
+    guide.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:12px;font-weight:700;padding:6px 16px;border-radius:999px;pointer-events:none;z-index:9999;white-space:nowrap';
+    document.body.appendChild(guide);
   }
-  guide.textContent = `タップで配置・画面外でキャンセル`;
+  guide.textContent = 'クリックで配置・庭の外でキャンセル';
   guide.hidden = false;
 
-  // プレビュー初期位置を庭エリア中央にpxで設定
-  const _gr = document.getElementById('screen-garden').getBoundingClientRect();
-  housingPreviewEl.style.left = `${_gr.width  / 2}px`;
-  housingPreviewEl.style.top  = `${_gr.height / 2}px`;
-
-  const gardenScreen = document.getElementById('screen-garden');
-  // mousemove・click はwindowで取る（子要素による吸収を防ぐ）
   window.addEventListener('mousemove', onGardenPointerMove);
   window.addEventListener('click',     onGardenClick);
-  gardenScreen.addEventListener('pointermove', onGardenPointerMove);
-  gardenScreen.addEventListener('pointerup',   onGardenPointerUp);
+  // タッチ用
+  const gardenScreen = document.getElementById('screen-garden');
   gardenScreen.addEventListener('pointerdown', onGardenPointerDown);
 }
 
@@ -1958,23 +1951,18 @@ function _gardenPct(e, gardenEl) {
   };
 }
 
-/** プレビューをポインタ位置に追従（window mousemove で呼ばれる） */
+/** プレビューをマウス位置に追従（position:fixed なので clientX/Y 直接使用） */
 function onGardenPointerMove(e) {
   if (!housingPreviewEl || !housingPlaceItemId) return;
-  const gardenEl = document.getElementById('screen-garden');
-  const rect = gardenEl.getBoundingClientRect();
-  // px直接指定（%変換を経由しない）
-  const px = e.clientX - rect.left;
-  const py = e.clientY - rect.top;
-  housingPreviewEl.style.left = `${px}px`;
-  housingPreviewEl.style.top  = `${py}px`;
+  housingPreviewEl.style.left = `${e.clientX}px`;
+  housingPreviewEl.style.top  = `${e.clientY}px`;
 }
 
 /** PC用：マウスクリックで配置確定（window登録） */
 function onGardenClick(e) {
   if (!housingPlaceItemId) return;
-  // トレイやフッターのクリックは無視
   if (e.target.closest('#item-tray') || e.target.closest('#garden-footer')) return;
+  if (e.target.closest('#bottom-nav') || e.target.closest('.overlay:not(.hidden)')) return;
   _confirmPlace(e);
 }
 
@@ -2021,7 +2009,8 @@ async function _confirmPlace(e) {
 
   own.qty -= 1;
   if (own.qty <= 0) u.ownedItems = u.ownedItems.filter(o => o.itemId !== itemId);
-  u.placedItems.push({ itemId, x: xPct, y: yPct, sizeScale });
+  const uid = `${Date.now()}_${Math.random()}`;
+  u.placedItems.push({ uid, itemId, x: xPct, y: yPct, sizeScale });
   await saveUser(u);
 
   const guide = document.getElementById('housing-guide-msg');
