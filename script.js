@@ -1897,7 +1897,6 @@ async function renderTrayItems() {
 
     if (qty > 0) {
       card.addEventListener('click', () => {
-        housingPlaceItemId = item.id;
         closeItemTray();
         enterPlaceMode(item);
       });
@@ -1909,6 +1908,7 @@ async function renderTrayItems() {
 
 /** 配置モード開始 */
 function enterPlaceMode(item) {
+  housingPlaceItemId = item.id;  // closeItemTray→exitPlaeModeでnullされるため再設定
   document.body.classList.add('housing-place-mode');
 
   // プレビュー要素をbody直下・position:fixedで生成（座標変換不要）
