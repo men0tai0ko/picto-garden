@@ -78,7 +78,10 @@ function switchScreen(name) {
   const target = document.getElementById(`screen-${name}`);
   if (target) target.classList.add('active');
   // cage-footer表示制御
-  document.body.classList.toggle('screen-cage', name === 'cage');
+  document.body.classList.toggle('screen-cage',  name === 'cage');
+  document.body.classList.toggle('screen-breed', name === 'breed');
+  // 繁殖画面から離れる時に選択状態をリセット
+  if (name !== 'breed') selectedBreedIds = [];
   // 画面切替時にステータスパネルを閉じる
   const panel = document.getElementById('pet-panel');
   panel.classList.remove('open');
@@ -240,6 +243,8 @@ function showGeneratedOverlay(pet) {
 // ===== ケージ =====
 /** ケージ編集モード（trueのとき削除ボタンを表示） */
 let cageEditMode = false;
+/** 繁殖画面の選択状態（画面再描画をまたいで保持） */
+let selectedBreedIds = [];
 
 async function renderCage() {
   const grid = document.getElementById('cage-grid');
@@ -329,7 +334,8 @@ async function renderCage() {
   };
   btnBreed.onclick = () => {
     if (pets.length < 2) return;
-    showBreedOverlay(pets, user);
+    switchScreen('breed');
+    renderBreed();
   };
   btnEdit.onclick = () => {
     cageEditMode = !cageEditMode;
@@ -645,6 +651,11 @@ async function showPetPanel(pet) {
     await savePet(fresh);
     await renderGarden();
     showPetPanel(fresh);
+    // ケージカードの名前を即時反映
+    const cageScreen = document.getElementById('screen-cage');
+    const card = cageScreen.querySelector(`[data-cage-card="${pet.id}"]`);
+    const u = await getUser();
+    if (card) updateCageCard(card, fresh, u);
   });
 
   // リネームボタン
@@ -672,6 +683,11 @@ async function showPetPanel(pet) {
         await savePet(fresh);
         await renderGarden();
         showPetPanel(fresh);
+        // ケージカードの名前を即時反映
+        const cageScreen = document.getElementById('screen-cage');
+        const card = cageScreen.querySelector(`[data-cage-card="${pet.id}"]`);
+        const u = await getUser();
+        if (card) updateCageCard(card, fresh, u);
       }
     };
     input.addEventListener('blur',    commit);
@@ -1537,124 +1553,104 @@ function showReleaseConfirmDialog(pet) {
   };
 }
 
-// ===== 繁殖オーバーレイ =====
+// ===== 繁殖画面 =====
 
 /**
- * 繁殖UI：2体選択→確認→実行
- * @param {Pet[]} pets
- * @param {User} user
+ * 繁殖画面を描画する（screen-breed内）
+ * selectedBreedIdsはモジュール変数で保持
  */
-async function showBreedOverlay(pets, user) {
-  let overlay = document.getElementById('overlay-breed');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'overlay-breed';
-    overlay.className = 'overlay';
-    document.body.appendChild(overlay);
-  }
+async function renderBreed() {
+  const area = document.getElementById('breed-area');
+  const latestPets = await getAllPets();
+  const latestUser = await getUser();
+  const cost = BREED_COST_MULTIPLIER * latestUser.level;
 
-  // 選択状態管理
-  let selectedIds = [];
+  // コスト説明
+  area.innerHTML = `
+    <p style="font-size:12px;color:var(--color-text-light);margin:0">
+      2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
+    </p>
+  `;
 
-  const render = async () => {
-    // 毎回最新データを取得（給餌等による変化を反映）
-    const latestPets = await getAllPets();
-    const latestUser = await getUser();
-    const cost = BREED_COST_MULTIPLIER * latestUser.level;
-    overlay.innerHTML = `
-      <div class="overlay-card" style="width:min(340px,92vw);max-height:80vh;overflow-y:auto">
-        <h3 style="font-size:16px">💞 繁殖</h3>
-        <p style="font-size:12px;color:var(--color-text-light);margin-top:-6px">
-          2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
-        </p>
-        <div id="breed-pet-list" style="display:flex;flex-direction:column;gap:8px;width:100%;margin:10px 0"></div>
-        <div style="display:flex;gap:8px;width:100%;margin-top:4px">
-          <button class="btn-primary" id="breed-exec-btn"
-            style="flex:1;background:var(--color-accent)"
-            ${selectedIds.length !== 2 ? 'disabled' : ''}>
-            繁殖！
-          </button>
-          <button class="btn-primary" id="breed-cancel-btn" style="flex:1;background:#aaa">キャンセル</button>
-        </div>
-      </div>
+  // ペットリスト
+  latestPets.forEach(pet => {
+    const isSelected = selectedBreedIds.includes(pet.id);
+    const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
+    const row = document.createElement('div');
+    row.style.cssText = `display:flex;align-items:center;gap:10px;background:${isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-white)'};border-radius:10px;padding:8px 12px;cursor:${canSelect ? 'pointer' : 'default'};border:2px solid ${isSelected ? 'var(--color-main)' : 'transparent'};opacity:${canSelect ? '1' : '0.45'};box-shadow:var(--shadow)`;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 40; canvas.height = 40;
+    canvas.style.cssText = 'border-radius:8px;flex-shrink:0';
+    drawPetToCanvas(pet, canvas, 40, 6);
+
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0';
+    info.innerHTML = `
+      <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
+      <div style="font-size:10px;color:var(--color-text-light)">${pet.type} / 空腹${pet.hunger}</div>
     `;
 
-    const list = document.getElementById('breed-pet-list');
-    latestPets.forEach(pet => {
-      const isSelected = selectedIds.includes(pet.id);
-      const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
-      const row = document.createElement('div');
-      row.style.cssText = `display:flex;align-items:center;gap:10px;background:${isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-bg)'};border-radius:10px;padding:8px 12px;cursor:${canSelect ? 'pointer' : 'default'};border:2px solid ${isSelected ? 'var(--color-main)' : 'transparent'};opacity:${canSelect ? '1' : '0.45'}`;
+    if (canSelect) {
+      row.addEventListener('click', () => {
+        if (isSelected) {
+          selectedBreedIds = selectedBreedIds.filter(id => id !== pet.id);
+        } else if (selectedBreedIds.length < 2) {
+          selectedBreedIds.push(pet.id);
+        }
+        renderBreed();
+      });
+    }
+    row.append(canvas, info);
+    area.appendChild(row);
+  });
 
-      const canvas = document.createElement('canvas');
-      canvas.width = 40; canvas.height = 40;
-      canvas.style.cssText = 'border-radius:8px;flex-shrink:0';
-      drawPetToCanvas(pet, canvas, 40, 6);
+  // footerボタン状態更新
+  const execBtn = document.getElementById('breed-footer-exec');
+  execBtn.disabled = selectedBreedIds.length !== 2;
 
-      const info = document.createElement('div');
-      info.style.cssText = 'flex:1;min-width:0';
-      info.innerHTML = `
-        <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
-        <div style="font-size:10px;color:var(--color-text-light)">${pet.type} / 空腹${pet.hunger}</div>
-      `;
+  execBtn.onclick = async () => {
+    if (selectedBreedIds.length !== 2) return;
+    execBtn.disabled = true;
 
-      if (canSelect) {
-        row.addEventListener('click', async () => {
-          if (isSelected) {
-            selectedIds = selectedIds.filter(id => id !== pet.id);
-          } else if (selectedIds.length < 2) {
-            selectedIds.push(pet.id);
-          }
-          await render();
-        });
-      }
-      row.append(canvas, info);
-      list.appendChild(row);
-    });
+    // 所持上限チェック
+    const allPets = await getAllPets();
+    if (allPets.length >= BREED_PET_CAP) {
+      alert(`ペットの所持上限（${BREED_PET_CAP}体）に達しています`);
+      execBtn.disabled = false; return;
+    }
 
-    document.getElementById('breed-cancel-btn').onclick = () => overlay.classList.add('hidden');
+    // 通貨消費
+    const currentUser = await getUser();
+    const currentCost = BREED_COST_MULTIPLIER * currentUser.level;
+    const { ok } = await spendCurrency(currentCost);
+    if (!ok) {
+      alert(`通貨が足りません（必要: 🪙${currentCost}）`);
+      execBtn.disabled = false; return;
+    }
 
-    document.getElementById('breed-exec-btn').onclick = async () => {
-      if (selectedIds.length !== 2) return;
-      const btn = document.getElementById('breed-exec-btn');
-      btn.disabled = true;
-      btn.textContent = '合成中...';
+    // 親データ取得
+    const [pA, pB] = await Promise.all([getPet(selectedBreedIds[0]), getPet(selectedBreedIds[1])]);
+    if (!pA || !pB) { execBtn.disabled = false; return; }
 
-      // 所持上限チェック
-      const allPets = await getAllPets();
-      if (allPets.length >= BREED_PET_CAP) {
-        alert(`ペットの所持上限（${BREED_PET_CAP}体）に達しています`);
-        btn.disabled = false; btn.textContent = '繁殖！'; return;
-      }
+    // 子生成・保存
+    const inheritedBlob = Math.random() < 0.5 ? pA.imageData : pB.imageData;
+    const child = breedPet(pA, pB, inheritedBlob);
+    await registerNewPet(child);
 
-      // 通貨消費（最新userで計算）
-      const currentUser = await getUser();
-      const currentCost = BREED_COST_MULTIPLIER * currentUser.level;
-      const { ok } = await spendCurrency(currentCost);
-      if (!ok) {
-        alert(`通貨が足りません（必要: 🪙${currentCost}）`);
-        btn.disabled = false; btn.textContent = '繁殖！'; return;
-      }
-
-      // 親データ取得
-      const [pA, pB] = await Promise.all([getPet(selectedIds[0]), getPet(selectedIds[1])]);
-      if (!pA || !pB) { btn.disabled = false; btn.textContent = '繁殖！'; return; }
-
-      // 親どちらかの画像を50/50で継承→子生成→保存
-      const inheritedBlob = Math.random() < 0.5 ? pA.imageData : pB.imageData;
-      const child          = breedPet(pA, pB, inheritedBlob);
-      await registerNewPet(child);
-
-      overlay.classList.add('hidden');
-      await renderStatusBar();
-      await renderEncyclopedia();
-      await renderCage();
-      showBreedResultOverlay(child);
-    };
+    selectedBreedIds = [];
+    await renderStatusBar();
+    await renderEncyclopedia();
+    await renderCage();
+    showBreedResultOverlay(child);
   };
 
-  await render();
-  overlay.classList.remove('hidden');
+  document.getElementById('breed-footer-cancel').onclick = () => {
+    switchScreen('cage');
+    document.querySelectorAll('.nav-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.screen === 'cage')
+    );
+  };
 }
 
 /** 繁殖完了オーバーレイ */

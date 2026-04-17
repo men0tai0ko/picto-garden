@@ -493,6 +493,14 @@ body {
   align-items: stretch;
 }
 body.screen-cage #cage-footer { display: flex; }
+body.screen-breed #cage-footer { display: flex; }
+/* 繁殖画面ではケージ用3ボタンを隠し、繁殖用2ボタンを表示 */
+body.screen-breed #cage-btn-generate,
+body.screen-breed #cage-btn-breed,
+body.screen-breed #cage-btn-edit     { display: none; }
+body.screen-breed #breed-footer-exec,
+body.screen-breed #breed-footer-cancel { display: flex; }
+#breed-area { padding: 8px 16px 52px; display: flex; flex-direction: column; gap: 8px; }
 .cage-footer-btn {
   flex: 1;
   display: flex;

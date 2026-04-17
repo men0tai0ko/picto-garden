@@ -60,6 +60,12 @@
     <section id="screen-battle" class="screen">
     </section>
 
+    <!-- 繁殖 -->
+    <section id="screen-breed" class="screen">
+      <h2 class="screen-title">💞 繁殖</h2>
+      <div id="breed-area"></div>
+    </section>
+
     <!-- 図鑑 -->
     <section id="screen-encyclopedia" class="screen">
       <h2 class="screen-title">図鑑</h2>
@@ -70,9 +76,11 @@
 
   <!-- ケージフッター（ボトムナビ直上・ケージ画面表示時のみ） -->
   <div id="cage-footer">
-    <button id="cage-btn-generate" class="cage-footer-btn">✨<span>生成</span></button>
-    <button id="cage-btn-breed"    class="cage-footer-btn">💞<span>繁殖</span></button>
-    <button id="cage-btn-edit"     class="cage-footer-btn">✏️<span>編集</span></button>
+    <button id="cage-btn-generate"     class="cage-footer-btn">✨<span>生成</span></button>
+    <button id="cage-btn-breed"        class="cage-footer-btn">💞<span>繁殖</span></button>
+    <button id="cage-btn-edit"         class="cage-footer-btn">✏️<span>編集</span></button>
+    <button id="breed-footer-exec"     class="cage-footer-btn" hidden>💞<span>繁殖！</span></button>
+    <button id="breed-footer-cancel"   class="cage-footer-btn" hidden style="color:var(--color-text-light)">✕<span>キャンセル</span></button>
   </div>
 
   <!-- 下部パネル（庭ペットタップ時） -->
