@@ -1655,8 +1655,11 @@ async function renderBreed() {
   `;
 
   latestPets.forEach(pet => {
+    // 進化MAXに達していないペットは非表示
+    if ((pet.evolutionStage ?? 0) < BREED_EVOLUTION_MIN) return;
+
     const isSelected = selectedBreedIds.includes(pet.id);
-    const canSelect  = pet.hunger >= BREED_HUNGER_MIN && (pet.evolutionStage ?? 0) >= BREED_EVOLUTION_MIN;
+    const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
 
     // カード本体
     const card = document.createElement('div');
