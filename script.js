@@ -8,7 +8,7 @@
  */
 
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet, syncEncyclopediaFlags } from './state.js';
-import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP } from './petGenerator.js';
+import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP, calcStatCaps } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
@@ -45,6 +45,7 @@ function wrapWithGenerationBadge(iconEl, generation) {
     await syncRarity();
     await syncGardenSlots();
     await syncEncyclopediaFlags();
+    await syncStatCaps();
     await renderStatusBar();
     await renderEncyclopedia();
     await renderCage();
@@ -612,10 +613,10 @@ async function showPetPanel(pet) {
     </div>
     <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${pet.skill ?? '—'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-      ${statBar('HP',    pet.hp,     'hp')}
-      ${statBar('MP',    pet.mp,     'mp')}
-      ${statBar('攻撃',  pet.attack, 'atk')}
-      ${statBar('防御',  pet.defense,'def')}
+      ${statBar('HP',    pet.hp,     'hp',    pet.statCaps?.hp      ?? STAT_CAP)}
+      ${statBar('MP',    pet.mp,     'mp',    pet.statCaps?.mp      ?? STAT_CAP)}
+      ${statBar('攻撃',  pet.attack, 'atk',   pet.statCaps?.attack  ?? STAT_CAP)}
+      ${statBar('防御',  pet.defense,'def',   pet.statCaps?.defense ?? STAT_CAP)}
     </div>
     ${statBar('空腹度', pet.hunger, 'hunger')}
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
@@ -783,8 +784,9 @@ function startHungerTimer() {
         if (pet.hunger <= 0) continue;
         pet.hunger = Math.max(0, pet.hunger - HUNGER_DECREASE_VAL);
         // 自然回復（空腹度>0のペットのみ）
-        pet.hp = Math.min(STAT_CAP, (pet.hp ?? 0) + 5);
-        pet.mp = Math.min(STAT_CAP, (pet.mp ?? 0) + 5);
+        const caps = pet.statCaps ?? { hp: STAT_CAP, mp: STAT_CAP };
+        pet.hp = Math.min(caps.hp, (pet.hp ?? 0) + 5);
+        pet.mp = Math.min(caps.mp, (pet.mp ?? 0) + 5);
         await savePet(pet);
       }
 
@@ -822,11 +824,11 @@ function startHungerTimer() {
   }, HUNGER_INTERVAL_MS);
 }
 
-function statBar(label, value, cssClass) {
-  const pct = Math.min(100, Math.max(0, value));
+function statBar(label, value, cssClass, cap = STAT_CAP) {
+  const pct = Math.min(100, Math.max(0, (value / cap) * 100));
   return `
     <div class="panel-stat-row">
-      <div class="panel-stat-label">${label}: ${value}/100</div>
+      <div class="panel-stat-label">${label}: ${value}/${cap}</div>
       <div class="stat-bar-wrap">
         <div class="stat-bar ${cssClass}" style="width:${pct}%"></div>
       </div>
@@ -889,8 +891,8 @@ const EVOLUTION_THRESHOLDS = [
  * @param {number} [rarityGrowthProb] - レア度別ボーナス確率（省略時はコモン相当）
  * @returns {number} 上昇量（0以上）
  */
-function calcStatGain(current, bonusStat, bonusMult, rarityGrowthProb = RARE_GROWTH_PROB) {
-  const ratio = current / STAT_CAP;
+function calcStatGain(current, bonusStat, bonusMult, rarityGrowthProb = RARE_GROWTH_PROB, cap = STAT_CAP) {
+  const ratio = current / cap;
   const decayEntry = STAT_DECAY.find(d => ratio >= d.threshold);
   const decayMult  = decayEntry ? decayEntry.multiplier : 0.1;
 
@@ -924,18 +926,20 @@ async function feedPet(pet) {
   // 空腹度回復
   fresh.hunger = Math.min(100, fresh.hunger + FEED_HUNGER_RESTORE);
 
+  const caps = fresh.statCaps ?? { hp: STAT_CAP, mp: STAT_CAP, attack: STAT_CAP, defense: STAT_CAP };
+
   // 全ステータスが上限か判定（攻撃・防御のみ対象）
-  const allCapped = fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
+  const allCapped = fresh.attack >= caps.attack && fresh.defense >= caps.defense;
 
   if (!allCapped) {
     const bonus      = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
     const growthProb = RARITY_GROWTH_PROB[fresh.rarity] ?? RARE_GROWTH_PROB;
 
     const applyGain = (stat) => {
-      if (fresh[stat] >= STAT_CAP) return;
+      if (fresh[stat] >= caps[stat]) return;
       const isBonusStat = bonus.stat === stat || bonus.stat === 'all';
-      const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult, growthProb);
-      fresh[stat] = Math.min(STAT_CAP, fresh[stat] + gain);
+      const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult, growthProb, caps[stat]);
+      fresh[stat] = Math.min(caps[stat], fresh[stat] + gain);
     };
 
     applyGain('attack');
@@ -965,8 +969,9 @@ async function feedPet(pet) {
 async function waterPet(pet) {
   const fresh = await getPet(pet.id);
   if (!fresh) return;
-  fresh.hp = Math.min(100, fresh.hp + 10);
-  fresh.mp = Math.min(100, fresh.mp + 10);
+  const caps = fresh.statCaps ?? { hp: STAT_CAP, mp: STAT_CAP };
+  fresh.hp = Math.min(caps.hp, fresh.hp + 10);
+  fresh.mp = Math.min(caps.mp, fresh.mp + 10);
   await savePet(fresh);
 }
 
@@ -1107,10 +1112,10 @@ async function renderBattle() {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-        ${statBar('HP',   selectedPet.hp,      'hp')}
-        ${statBar('MP',   selectedPet.mp,      'mp')}
-        ${statBar('攻撃', selectedPet.attack,  'atk')}
-        ${statBar('防御', selectedPet.defense, 'def')}
+        ${statBar('HP',   selectedPet.hp,      'hp',  selectedPet.statCaps?.hp      ?? STAT_CAP)}
+        ${statBar('MP',   selectedPet.mp,      'mp',  selectedPet.statCaps?.mp      ?? STAT_CAP)}
+        ${statBar('攻撃', selectedPet.attack,  'atk', selectedPet.statCaps?.attack  ?? STAT_CAP)}
+        ${statBar('防御', selectedPet.defense, 'def', selectedPet.statCaps?.defense ?? STAT_CAP)}
       </div>
       ${statBar('満腹度', selectedPet.hunger, 'hunger')}
       <div style="display:flex;gap:6px;margin-top:10px">
@@ -1516,6 +1521,23 @@ async function syncGardenSlots() {
   if (user.gardenSlots < expected) {
     user.gardenSlots = expected;
     await saveUser(user);
+  }
+}
+
+/**
+ * statCapsを持たない既存ペットに起動時付与・現在値が上限超過の場合はクランプ
+ */
+async function syncStatCaps() {
+  const pets = await getAllPets();
+  for (const pet of pets) {
+    if (pet.statCaps) continue;
+    pet.statCaps = calcStatCaps(pet.typeIndex ?? 0, pet.personalityIndex ?? 4, pet.rarity ?? '一般');
+    // 現在値が新上限を超える場合クランプ
+    pet.hp      = Math.min(pet.hp,      pet.statCaps.hp);
+    pet.mp      = Math.min(pet.mp,      pet.statCaps.mp);
+    pet.attack  = Math.min(pet.attack,  pet.statCaps.attack);
+    pet.defense = Math.min(pet.defense, pet.statCaps.defense);
+    await savePet(pet);
   }
 }
 

@@ -270,6 +270,7 @@ function buildPetObject({ typeIndex, personality, attribute, rarity, imageBlob }
     rarity,
     imageData:   imageBlob,            // Blob（IndexedDBに保存）
     evolutionStage: 0,                 // 進化段階（0=未進化/1=stage1/2=stage2）
+    statCaps:    calcStatCaps(typeIndex, personality, rarity),
   };
 }
 
@@ -386,6 +387,68 @@ export const BREED_HUNGER_MIN      = 50; // 両親の空腹度下限
 export const BREED_PET_CAP         = 20; // 所持ペット上限
 export const BREED_STAT_INHERIT    = 0.7; // ステータス継承係数
 
+// ===== ステータス上限 =====
+
+/** 全ペット共通の基準上限 */
+const BASE_STAT_CAP = 80;
+
+/**
+ * 種類別ステータス上限ボーナス（typeIndex順・PET_TYPESと対応）
+ * 各エントリ: { hp, mp, attack, defense }
+ */
+const TYPE_STAT_BONUS = [
+  { hp:  0, mp:  0, attack: 15, defense:  0 }, // 0: ドラゴン系
+  { hp:  0, mp: 15, attack:  0, defense:  0 }, // 1: 鳥類系
+  { hp:  0, mp:  0, attack:  7, defense:  7 }, // 2: 野獣系
+  { hp: 15, mp:  0, attack:  0, defense:  0 }, // 3: スライム系
+  { hp:  0, mp: 15, attack:  0, defense:  0 }, // 4: 精霊系
+  { hp:  7, mp:  0, attack:  0, defense:  7 }, // 5: 水棲系
+  { hp:  0, mp:  0, attack: 15, defense:  0 }, // 6: 昆虫系
+  { hp: 15, mp:  0, attack:  0, defense:  0 }, // 7: 植物系
+  { hp:  0, mp:  0, attack:  0, defense: 15 }, // 8: 岩石系
+  { hp:  0, mp: 15, attack:  0, defense:  0 }, // 9: 幻影系
+];
+
+/**
+ * 性格別ステータス上限ボーナス（personalityIndex順・PERSONALITIESと対応）
+ * 各エントリ: { hp, mp, attack, defense }
+ */
+const PERSONALITY_CAP_BONUS = [
+  { hp:  0, mp:  0, attack: 10, defense:  0 }, // 0: 勇猛
+  { hp:  0, mp: 10, attack:  0, defense:  0 }, // 1: 活発
+  { hp: 10, mp:  0, attack:  0, defense:  0 }, // 2: 強靭
+  { hp:  0, mp:  0, attack:  0, defense: 10 }, // 3: 堅固
+  { hp:  0, mp:  0, attack:  0, defense:  0 }, // 4: 神秘（ボーナスなし）
+];
+
+/** 等級別全ステータス上限ボーナス */
+const RARITY_CAP_BONUS = {
+  '伝説': 15,
+  '英雄': 10,
+  '希少':  6,
+  '高級':  3,
+  '一般':  0,
+};
+
+/**
+ * ステータス上限オブジェクトを計算して返す
+ * @param {number} typeIndex
+ * @param {number} personalityIndex
+ * @param {string} rarity
+ * @returns {{ hp: number, mp: number, attack: number, defense: number }}
+ */
+export function calcStatCaps(typeIndex, personalityIndex, rarity) {
+  const tb = TYPE_STAT_BONUS[typeIndex]         ?? { hp: 0, mp: 0, attack: 0, defense: 0 };
+  const pb = PERSONALITY_CAP_BONUS[personalityIndex] ?? { hp: 0, mp: 0, attack: 0, defense: 0 };
+  const rb = RARITY_CAP_BONUS[rarity]           ?? 0;
+  return {
+    hp:      BASE_STAT_CAP + tb.hp      + pb.hp      + rb,
+    mp:      BASE_STAT_CAP + tb.mp      + pb.mp      + rb,
+    attack:  BASE_STAT_CAP + tb.attack  + pb.attack  + rb,
+    defense: BASE_STAT_CAP + tb.defense + pb.defense + rb,
+  };
+}
+
 /**
  * 2体のペットから子Petオブジェクトを生成する
  * @param {Pet} parentA
@@ -434,5 +497,6 @@ export function breedPet(parentA, parentB, inheritedBlob) {
     imageData:        inheritedBlob,
     evolutionStage:   0,
     generation:       Math.max(parentA.generation ?? 0, parentB.generation ?? 0) + 1,
+    statCaps:         calcStatCaps(typeIndex, personalityIndex, rarity),
   };
 }
