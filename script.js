@@ -23,6 +23,7 @@ function getEvolutionClass(stage) {
 (async () => {
   try {
     await initDB();
+    await syncRarity();
     await syncGardenSlots();
     await renderStatusBar();
     await renderEncyclopedia();
@@ -184,17 +185,18 @@ function showGeneratedOverlay(pet) {
   infoArea.appendChild(imgEl);
 
   const rarityDesc = {
-    '★★★': '初期値・成長率高め',
-    '★★':  '初期値・成長率やや高め',
-    '★':   '初期値・成長率ともに標準',
+    '伝説': '初期値・成長率非常に高め',
+    '英雄': '初期値・成長率高め',
+    '希少': '初期値・成長率やや高め',
+    '高級': '初期値・成長率ともに標準',
+    '一般': '初期値・成長率ともに控えめ',
   };
-  const rarityStars = pet.rarity.split(' ')[0];
   const infoHTML = `
     <div class="result-row">種類: <span>${pet.type}</span></div>
     <div class="result-row">性格: <span>${pet.personality}</span></div>
     <div class="result-row">属性: <span>${pet.attribute}</span></div>
-    <div class="result-row">レア度: <span>${rarityStars}</span></div>
-    <div class="result-row" style="font-size:11px;color:var(--color-text-light)">${rarityDesc[rarityStars] ?? ''}</div>
+    <div class="result-row">等級: <span>${pet.rarity}</span></div>
+    <div class="result-row" style="font-size:11px;color:var(--color-text-light)">${rarityDesc[pet.rarity] ?? ''}</div>
     <div class="result-row">HP: <span>${pet.hp}</span> / MP: <span>${pet.mp}</span></div>
     <div class="result-row">攻撃: <span>${pet.attack}</span> / 防御: <span>${pet.defense}</span></div>
   `;
@@ -275,7 +277,7 @@ async function renderCage() {
     badges.innerHTML = `
       <span class="badge">${pet.personality}</span>
       <span class="badge">${pet.attribute}</span>
-      <span class="badge">${pet.rarity.split(' ')[0]}</span>
+      <span class="badge">${pet.rarity}</span>
     `;
 
     const hpBar = document.createElement('div');
@@ -592,6 +594,13 @@ async function renderGarden() {
 /** パネルが開いているペットID（タイマーからの再描画用） */
 let panelOpenPetId = null;
 
+/** ランダム名称リスト */
+const RANDOM_PET_NAMES = [
+  'ルナ','ソラ','ミル','フィン','リク','ノア','ハル','ティア',
+  'クロ','シロ','モモ','ユキ','ナギ','コハク','アオ','ライ',
+  'フウ','ミコ','ヒビキ','タマ','ゼン','カイ','レン','サク',
+];
+
 async function showPetPanel(pet) {
   const panel  = document.getElementById('pet-panel');
   const content = document.getElementById('panel-content');
@@ -601,15 +610,21 @@ async function showPetPanel(pet) {
   const price = 10 * user.level;
 
   content.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <span id="panel-pet-name" style="font-size:16px;font-weight:700;color:var(--color-text)">${pet.name ?? pet.type}</span>
-      <button id="panel-rename-btn" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--color-text-light);padding:2px 4px" aria-label="名前を変更">✏️</button>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-      <div class="panel-badge-type">${pet.type}</div>
-      <div class="panel-badge-personality">${pet.personality}</div>
-      <div class="panel-badge-attribute">${pet.attribute}</div>
-      <div class="panel-badge-rarity">${pet.rarity.split(' ')[0]}</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <canvas id="panel-pet-canvas" width="48" height="48" style="border-radius:10px;flex-shrink:0"></canvas>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+          <span id="panel-pet-name" style="font-size:16px;font-weight:700;color:var(--color-text)">${pet.name ?? pet.type}</span>
+          <button id="panel-rename-btn" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--color-text-light);padding:2px 4px" aria-label="名前を変更">✏️</button>
+          <button id="panel-random-name-btn" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--color-text-light);padding:2px 4px" aria-label="ランダムな名前">🎲</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <div class="panel-badge-type">${pet.type}</div>
+          <div class="panel-badge-personality">${pet.personality}</div>
+          <div class="panel-badge-attribute">${pet.attribute}</div>
+          <div class="panel-badge-rarity">${pet.rarity}</div>
+        </div>
+      </div>
     </div>
     <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${pet.skill ?? '—'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
@@ -653,6 +668,21 @@ async function showPetPanel(pet) {
     await renderGarden();
     const updated = await getPet(pet.id);
     if (updated) showPetPanel(updated);
+  });
+
+  // ペットアイコン描画
+  drawPetToCanvas(pet, document.getElementById('panel-pet-canvas'), 48, 8);
+  const panelEvoClass = getEvolutionClass(pet.evolutionStage ?? 0);
+  if (panelEvoClass) document.getElementById('panel-pet-canvas').classList.add(panelEvoClass);
+
+  // サイコロボタン：ランダム名をIndexedDBに保存してパネル再描画
+  document.getElementById('panel-random-name-btn').addEventListener('click', async () => {
+    const fresh = await getPet(pet.id);
+    if (!fresh) return;
+    fresh.name = RANDOM_PET_NAMES[Math.floor(Math.random() * RANDOM_PET_NAMES.length)];
+    await savePet(fresh);
+    await renderGarden();
+    showPetPanel(fresh);
   });
 
   // リネームボタン
@@ -791,9 +821,11 @@ const RARE_GROWTH_VALUE = 10;
 
 /** レア度別レアボーナス確率（フォールバック: 5%） */
 const RARITY_GROWTH_PROB = {
-  '★★★ レア':    0.20,
-  '★★ アンコモン': 0.10,
-  '★ コモン':     0.05,
+  '伝説': 0.30,
+  '英雄': 0.20,
+  '希少': 0.10,
+  '高級': 0.05,
+  '一般': 0.02,
 };
 
 /** 通常成長：+1〜+5 */
@@ -1423,6 +1455,21 @@ function showLevelUpOverlay(newLevel) {
  * 起動時整合チェック：現在Lvに対応する正しい gardenSlots を保証する
  * 既存データが拡張条件Lvに達しているがスロットが少ない場合に補正する
  */
+async function syncRarity() {
+  const RARITY_MIGRATION = {
+    '★★★ レア':    '英雄',
+    '★★ アンコモン': '希少',
+    '★ コモン':     '高級',
+  };
+  const pets = await getAllPets();
+  for (const pet of pets) {
+    if (RARITY_MIGRATION[pet.rarity]) {
+      pet.rarity = RARITY_MIGRATION[pet.rarity];
+      await savePet(pet);
+    }
+  }
+}
+
 async function syncGardenSlots() {
   const user = await getUser();
   const expected = Math.min(GARDEN_SLOT_MAX, 1 + GARDEN_SLOT_LEVELS.filter(lv => lv <= user.level).length);
@@ -1652,7 +1699,7 @@ function showBreedResultOverlay(child) {
     <div>種族: <strong>${child.type}</strong></div>
     <div>性格: <strong>${child.personality}</strong></div>
     <div>属性: <strong>${child.attribute}</strong></div>
-    <div>レア度: <strong>${child.rarity.split(' ')[0]}</strong></div>
+    <div>レア度: <strong>${child.rarity}</strong></div>
     <div style="font-size:11px;color:var(--color-text-light)">HP ${child.hp} / MP ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
   `;
   overlay.classList.remove('hidden');

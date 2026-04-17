@@ -66,9 +66,11 @@ const INIT_STAT_MAX = 30;
 
 /** ノイズ（分散）によるレア度閾値 */
 const RARITY_THRESHOLDS = [
-  { min: 2500, label: '★★★ レア'  },
-  { min: 1500, label: '★★ アンコモン' },
-  { min:    0, label: '★ コモン'   },
+  { min: 4000, label: '伝説' },
+  { min: 2500, label: '英雄' },
+  { min: 1500, label: '希少' },
+  { min:  500, label: '高級' },
+  { min:    0, label: '一般' },
 ];
 
 /** 輪郭解析：エッジ密度閾値（輪郭 → 種類） */
