@@ -7,8 +7,8 @@
  * T5：報酬ループ（EXP・レベルアップ・レベルアップ演出）
  */
 
-import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet, syncEncyclopediaFlags } from './state.js';
-import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP, calcStatCaps, BREED_EVOLUTION_MIN } from './petGenerator.js';
+import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet, syncHousingData } from './state.js';
+import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
@@ -44,8 +44,7 @@ function wrapWithGenerationBadge(iconEl, generation) {
     await initDB();
     await syncRarity();
     await syncGardenSlots();
-    await syncEncyclopediaFlags();
-    await syncStatCaps();
+    await syncHousingData();
     await renderStatusBar();
     await renderEncyclopedia();
     await renderCage();
@@ -54,6 +53,8 @@ function wrapWithGenerationBadge(iconEl, generation) {
     await renderBattle();
     initNavigation();
     initGenerateScreen();
+    initGardenFooter();
+    switchScreen('garden');
     startHungerTimer();
   } catch (err) {
     console.error('起動エラー:', err);
@@ -79,12 +80,11 @@ function switchScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById(`screen-${name}`);
   if (target) target.classList.add('active');
-  // cage-footer表示制御
-  document.body.classList.toggle('screen-cage',     name === 'cage');
-  document.body.classList.toggle('screen-breed',    name === 'breed');
-  document.body.classList.toggle('screen-generate', name === 'generate');
-  // 繁殖画面から離れる時に選択状態をリセット
-  if (name !== 'breed') selectedBreedIds = [];
+  // フッター表示制御
+  document.body.classList.toggle('screen-cage',   name === 'cage');
+  document.body.classList.toggle('screen-garden', name === 'garden');
+  // 庭以外に切替時はトレイ・配置モードを閉じる
+  if (name !== 'garden') closeItemTray();
   // 画面切替時にステータスパネルを閉じる
   const panel = document.getElementById('pet-panel');
   panel.classList.remove('open');
@@ -194,14 +194,6 @@ function initGenerateScreen() {
       generateBtn.textContent = 'ペットを生成する ✨';
     }
   });
-
-  // キャンセルボタン：ケージへ戻る
-  document.getElementById('generate-footer-cancel').onclick = () => {
-    switchScreen('cage');
-    document.querySelectorAll('.nav-btn').forEach(b =>
-      b.classList.toggle('active', b.dataset.screen === 'cage')
-    );
-  };
 }
 
 // ===== 生成完了オーバーレイ =====
@@ -254,8 +246,6 @@ function showGeneratedOverlay(pet) {
 // ===== ケージ =====
 /** ケージ編集モード（trueのとき削除ボタンを表示） */
 let cageEditMode = false;
-/** 繁殖画面の選択状態（画面再描画をまたいで保持） */
-let selectedBreedIds = [];
 
 async function renderCage() {
   const grid = document.getElementById('cage-grid');
@@ -345,8 +335,7 @@ async function renderCage() {
   };
   btnBreed.onclick = () => {
     if (pets.length < 2) return;
-    switchScreen('breed');
-    renderBreed();
+    showBreedOverlay(pets, user);
   };
   btnEdit.onclick = () => {
     cageEditMode = !cageEditMode;
@@ -477,9 +466,115 @@ async function renderGarden() {
   const emptyMsg  = document.getElementById('garden-empty-msg');
   petsArea.innerHTML = '';
 
+  // 配置済みアイテムを描画（ペットより後に追加してz-indexで制御）
+  const gardenScreen = document.getElementById('screen-garden');
+  gardenScreen.querySelectorAll('.garden-item').forEach(el => el.remove());
+  (user.placedItems ?? []).forEach(placed => {
+    const def = ITEM_CATALOG.find(it => it.id === placed.itemId);
+    if (!def) return;
+    const baseSize = ITEM_BASE_SIZE[def.category] ?? 48;
+    const size = Math.round(baseSize * placed.sizeScale);
+    const el = document.createElement('div');
+    el.className = 'garden-item';
+    el.dataset.uid = placed.uid;
+    el.innerHTML = def.svg;
+    el.querySelector('svg').style.cssText = `width:${size}px;height:${size}px;display:block`;
+    // 初期位置：%指定（getBoundingClientRect不要・非表示時でも正確）
+    el.style.cssText = `left:${placed.x}%;top:${placed.y}%;z-index:${Math.round(placed.y * 1.5 + 10)}`;
+
+    // ポインタダウン → 長押し削除 / ドラッグ移動 の判別
+    let pressTimer  = null;
+    let isDragging  = false;
+    let dragOffX    = 0;
+    let dragOffY    = 0;
+
+    const onDown = (e) => {
+      if (document.body.classList.contains('housing-place-mode')) return;
+      e.stopPropagation();
+      isDragging = false;
+      const rect = gardenScreen.getBoundingClientRect();
+      // %指定の現在位置をpxに変換してオフセット計算
+      dragOffX = (parseFloat(el.style.left) / 100 * rect.width)  - (e.clientX - rect.left);
+      dragOffY = (parseFloat(el.style.top)  / 100 * rect.height) - (e.clientY - rect.top);
+
+      pressTimer = setTimeout(async () => {
+        isDragging = false;
+        const u = await getUser();
+        const idx = (u.placedItems ?? []).findIndex(p => p.uid === placed.uid);
+        if (idx >= 0) {
+          u.placedItems.splice(idx, 1);
+          const own = u.ownedItems?.find(o => o.itemId === placed.itemId);
+          if (own) own.qty += 1; else (u.ownedItems = u.ownedItems ?? []).push({ itemId: placed.itemId, qty: 1 });
+          await saveUser(u);
+          await renderGarden();
+        }
+      }, 600);
+
+      el.setPointerCapture(e.pointerId);
+    };
+
+    const FOOTER_H = 52; // garden-footerの高さ（style.css固定値）
+
+    const onMove = (e) => {
+      if (document.body.classList.contains('housing-place-mode')) return;
+      if (!pressTimer && !isDragging) return;
+      const rect = gardenScreen.getBoundingClientRect();
+      const curPx = e.clientX - rect.left;
+      const curPy = e.clientY - rect.top;
+      const itemPx = parseFloat(el.style.left) / 100 * rect.width;
+      const itemPy = parseFloat(el.style.top)  / 100 * rect.height;
+      const dx = (curPx + dragOffX) - itemPx;
+      const dy = (curPy + dragOffY) - itemPy;
+      if (!isDragging && Math.abs(dx) + Math.abs(dy) > 5) {
+        isDragging = true;
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+      if (isDragging) {
+        const newPx = Math.max(0, Math.min(rect.width  - size, curPx + dragOffX));
+        const newPy = Math.max(0, Math.min(rect.height - FOOTER_H - size, curPy + dragOffY));
+        el.style.left = `${newPx / rect.width  * 100}%`;
+        el.style.top  = `${newPy / rect.height * 100}%`;
+      }
+    };
+
+    const onUp = async (e) => {
+      if (document.body.classList.contains('housing-place-mode')) return;
+      clearTimeout(pressTimer);
+      pressTimer = null;
+      if (!isDragging) return;
+      isDragging = false;
+
+      const rect = gardenScreen.getBoundingClientRect();
+      const yMinPx = GARDEN_Y_MIN / 100 * rect.height;
+      const newPx = Math.max(0, Math.min(rect.width  - size, e.clientX - rect.left + dragOffX));
+      const newPy = Math.max(yMinPx, Math.min(rect.height - FOOTER_H - size, e.clientY - rect.top  + dragOffY));
+      const newX = Math.round((newPx / rect.width)  * 1000) / 10;
+      const newY = Math.round((newPy / rect.height) * 1000) / 10;
+      const newScale = DEPTH_SCALE_MIN + (newY - GARDEN_Y_MIN) / (100 - GARDEN_Y_MIN) * (DEPTH_SCALE_MAX - DEPTH_SCALE_MIN);
+
+      const u = await getUser();
+      const target = (u.placedItems ?? []).find(p => p.uid === placed.uid);
+      if (target) {
+        target.x = newX;
+        target.y = newY;
+        target.sizeScale = newScale;
+        await saveUser(u);
+      }
+      await renderGarden();
+    };
+
+    const onCancel = () => { clearTimeout(pressTimer); pressTimer = null; isDragging = false; };
+
+    el.addEventListener('pointerdown',   onDown);
+    el.addEventListener('pointermove',   onMove);
+    el.addEventListener('pointerup',     onUp);
+    el.addEventListener('pointercancel', onCancel);
+    gardenScreen.appendChild(el);
+  });
+
   if (user.gardenPetIds.length === 0) {
     emptyMsg.hidden = false;
-    // 「ケージへ」ボタンを追加（初回のみ生成）
     let cageBtn = document.getElementById('garden-go-cage-btn');
     if (!cageBtn) {
       cageBtn = document.createElement('button');
@@ -506,7 +601,6 @@ async function renderGarden() {
     const pet = await getPet(petId);
     if (!pet) continue;
 
-    // Canvas正方形クロップ＋角丸処理（spec.md 7.2）
     const canvas  = document.createElement('canvas');
     const SIZE    = 80;
     const RADIUS  = 16;
@@ -515,16 +609,15 @@ async function renderGarden() {
     canvas.className = `garden-pet ${PET_TYPES[pet.typeIndex]?.animClass ?? ''} ${getEvolutionClass(pet.evolutionStage ?? 0)}`.trimEnd();
     canvas.setAttribute('role', 'img');
     canvas.setAttribute('aria-label', pet.type);
+    canvas.style.zIndex = '50';
 
     const blobUrl = URL.createObjectURL(pet.imageData);
     const img = new Image();
     img.onload = () => {
       const ctx = canvas.getContext('2d');
-      // 正方形クロップ（min辺基準・中央）
       const s  = Math.min(img.naturalWidth, img.naturalHeight);
       const sx = (img.naturalWidth  - s) / 2;
       const sy = (img.naturalHeight - s) / 2;
-      // 角丸クリッピング
       ctx.beginPath();
       ctx.roundRect(0, 0, SIZE, SIZE, RADIUS);
       ctx.clip();
@@ -534,15 +627,15 @@ async function renderGarden() {
     img.onerror = () => URL.revokeObjectURL(blobUrl);
     img.src = blobUrl;
 
-    // タップ → 下部パネル（最新データを取得して表示）
+    // タップ → 下部パネル（配置モード中は無効）
     canvas.addEventListener('click', async () => {
+      if (document.body.classList.contains('housing-place-mode')) return;
       const latest = await getPet(pet.id);
       if (latest) showPetPanel(latest);
     });
 
-    // アイコン＋名前をwrapperで包んで縦並び
     const petWrapper = document.createElement('div');
-    petWrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px';
+    petWrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;z-index:50';
     const nameLabel = document.createElement('div');
     nameLabel.style.cssText = 'font-size:10px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.6);font-weight:700;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center';
     nameLabel.textContent = pet.name ?? pet.type;
@@ -555,35 +648,14 @@ async function renderGarden() {
 /** パネルが開いているペットID（タイマーからの再描画用） */
 let panelOpenPetId = null;
 
-/**
- * ランダム名生成（petGenerator.jsのNAME_ADJECTIVES/NAME_NOUNSと同テーブル）
- * generateName()はpetGenerator内部関数のためこちらで同等ロジックを保持
- */
-const _RAND_ADJ = [
-  'あかい', 'あおい', 'きいろ', 'くろい', 'しろい',
-  'つよい', 'はやい', 'おおき', 'ちいさ', 'ひかる',
-  'やさし', 'こわい', 'かわい', 'するど', 'ふかい',
-  'たかい', 'にぶい', 'しずか', 'にぎや', 'ふるい',
-  'あつい', 'つめた', 'かたい', 'やわら', 'くらい',
-  'あかる', 'おもい', 'かるい', 'ながい', 'みじか',
-  'まるい', 'するり', 'ぬるい', 'にごり', 'すみき',
-  'はげし', 'おだや', 'ふわり', 'ぎらり', 'ひそか',
+/** ランダム名称リスト（ひらがな形容詞＋カタカナ名詞・petGeneratorと同形式） */
+const RANDOM_PET_NAMES = [
+  'あかいトラ', 'あおいリュウ', 'しろいホシ', 'くろいカゼ', 'きいろヒカリ',
+  'つよいウミ', 'はやいモリ', 'やさしイワ', 'かわいクモ', 'ひかるナミ',
+  'するどキバ', 'こわいツメ', 'しずかタマ', 'おおきホノ', 'ふかいコオリ',
+  'たかいムシ', 'にぎやハナ', 'ちいさツキ', 'にぶいカミ', 'ふるいタイヨ',
+  'くろいリュウ', 'あおいウミ', 'しろいモリ', 'つよいホシ',
 ];
-const _RAND_NOUN = [
-  'トラ', 'リュウ', 'ホシ', 'カゼ', 'ヒカリ',
-  'ウミ', 'モリ', 'イワ', 'クモ', 'ナミ',
-  'キバ', 'ツメ', 'タマ', 'ホノ', 'コオリ',
-  'ムシ', 'ハナ', 'ツキ', 'タイヨ', 'カミ',
-  'ユキ', 'カワ', 'ソラ', 'クサ', 'ミズ',
-  'ケムリ', 'カゲ', 'ヒカリ', 'ドロ', 'スナ',
-  'キリ', 'アメ', 'ライ', 'ドク', 'タタリ',
-  'エン', 'ミコ', 'タキ', 'ヤマ', 'シマ',
-];
-function generateRandomPetName() {
-  const adj  = _RAND_ADJ[Math.floor(Math.random() * _RAND_ADJ.length)];
-  const noun = _RAND_NOUN[Math.floor(Math.random() * _RAND_NOUN.length)];
-  return (adj + noun).slice(0, 6);
-}
 
 async function showPetPanel(pet) {
   const panel  = document.getElementById('pet-panel');
@@ -613,10 +685,10 @@ async function showPetPanel(pet) {
     </div>
     <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${pet.skill ?? '—'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-      ${statBar('体力',  pet.hp,     'hp',    pet.statCaps?.hp      ?? STAT_CAP)}
-      ${statBar('魔力',  pet.mp,     'mp',    pet.statCaps?.mp      ?? STAT_CAP)}
-      ${statBar('攻撃',  pet.attack, 'atk',   pet.statCaps?.attack  ?? STAT_CAP)}
-      ${statBar('防御',  pet.defense,'def',   pet.statCaps?.defense ?? STAT_CAP)}
+      ${statBar('HP',    pet.hp,     'hp')}
+      ${statBar('MP',    pet.mp,     'mp')}
+      ${statBar('攻撃',  pet.attack, 'atk')}
+      ${statBar('防御',  pet.defense,'def')}
     </div>
     ${statBar('空腹度', pet.hunger, 'hunger')}
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
@@ -679,16 +751,10 @@ async function showPetPanel(pet) {
   document.getElementById('panel-random-name-btn').addEventListener('click', async () => {
     const fresh = await getPet(pet.id);
     if (!fresh) return;
-    fresh.name = generateRandomPetName();
+    fresh.name = RANDOM_PET_NAMES[Math.floor(Math.random() * RANDOM_PET_NAMES.length)];
     await savePet(fresh);
     await renderGarden();
     showPetPanel(fresh);
-    // ケージカードの名前を即時反映
-    const cageNameEl = document.querySelector(`[data-cage-card="${pet.id}"] [data-cage-name]`);
-    if (cageNameEl) cageNameEl.textContent = fresh.name ?? fresh.type;
-    // 繁殖カードの名前を即時反映
-    const breedNameEl = document.querySelector(`[data-breed-card="${pet.id}"] [data-breed-name]`);
-    if (breedNameEl) breedNameEl.textContent = fresh.name ?? fresh.type;
   });
 
   // リネームボタン
@@ -716,12 +782,6 @@ async function showPetPanel(pet) {
         await savePet(fresh);
         await renderGarden();
         showPetPanel(fresh);
-        // ケージカードの名前を即時反映
-        const cageNameEl = document.querySelector(`[data-cage-card="${pet.id}"] [data-cage-name]`);
-        if (cageNameEl) cageNameEl.textContent = fresh.name ?? fresh.type;
-        // 繁殖カードの名前を即時反映
-        const breedNameEl = document.querySelector(`[data-breed-card="${pet.id}"] [data-breed-name]`);
-        if (breedNameEl) breedNameEl.textContent = fresh.name ?? fresh.type;
       }
     };
     input.addEventListener('blur',    commit);
@@ -784,9 +844,8 @@ function startHungerTimer() {
         if (pet.hunger <= 0) continue;
         pet.hunger = Math.max(0, pet.hunger - HUNGER_DECREASE_VAL);
         // 自然回復（空腹度>0のペットのみ）
-        const caps = pet.statCaps ?? { hp: STAT_CAP, mp: STAT_CAP };
-        pet.hp = Math.min(caps.hp, (pet.hp ?? 0) + 5);
-        pet.mp = Math.min(caps.mp, (pet.mp ?? 0) + 5);
+        pet.hp = Math.min(STAT_CAP, (pet.hp ?? 0) + 5);
+        pet.mp = Math.min(STAT_CAP, (pet.mp ?? 0) + 5);
         await savePet(pet);
       }
 
@@ -824,11 +883,11 @@ function startHungerTimer() {
   }, HUNGER_INTERVAL_MS);
 }
 
-function statBar(label, value, cssClass, cap = STAT_CAP) {
-  const pct = Math.min(100, Math.max(0, (value / cap) * 100));
+function statBar(label, value, cssClass) {
+  const pct = Math.min(100, Math.max(0, value));
   return `
     <div class="panel-stat-row">
-      <div class="panel-stat-label">${label}: ${value}/${cap}</div>
+      <div class="panel-stat-label">${label}: ${value}/100</div>
       <div class="stat-bar-wrap">
         <div class="stat-bar ${cssClass}" style="width:${pct}%"></div>
       </div>
@@ -877,6 +936,199 @@ const FEED_HUNGER_RESTORE = 20;
 /** ステータス上限 */
 const STAT_CAP = 100;
 
+// ===== ハウジング定数 =====
+
+/** アイテム配置合計上限 */
+const HOUSING_TOTAL_CAP = 20;
+
+/** カテゴリ別baseSize（px） */
+const ITEM_BASE_SIZE = { building: 64, plant: 48, item: 36 };
+
+/** 奥行き：配置可能Y下限（草原上端）・スケール範囲 */
+const GARDEN_Y_MIN      = 33;   // 配置可能エリア上端（%）
+const DEPTH_SCALE_MIN   = 0.5;  // Y=GARDEN_Y_MIN 時のスケール（遠）
+const DEPTH_SCALE_MAX   = 1.5;  // Y=100 時のスケール（近）
+
+/**
+ * アイテム定数テーブル
+ * svg: viewBox="0 0 64 64" のSVGパス文字列
+ */
+const ITEM_CATALOG = [
+  // 建物（maxQty=1）
+  {
+    id: 'building_cabin', name: '木の小屋', category: 'building', price: 150, maxQty: 1,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="32" width="44" height="26" rx="2" fill="#C4956A"/>
+      <polygon points="4,34 32,10 60,34" fill="#8B5E3C"/>
+      <rect x="26" y="42" width="12" height="16" rx="1" fill="#6B3F1F"/>
+      <rect x="12" y="36" width="10" height="10" rx="1" fill="#C8E6F5"/>
+      <rect x="42" y="36" width="10" height="10" rx="1" fill="#C8E6F5"/>
+    </svg>`,
+  },
+  {
+    id: 'building_tower', name: '石の塔', category: 'building', price: 150, maxQty: 1,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="18" y="20" width="28" height="40" rx="2" fill="#9A8870"/>
+      <rect x="14" y="16" width="36" height="8" rx="1" fill="#7A6850"/>
+      <rect x="10" y="10" width="8" height="14" rx="1" fill="#7A6850"/>
+      <rect x="46" y="10" width="8" height="14" rx="1" fill="#7A6850"/>
+      <rect x="28" y="14" width="8" height="14" rx="1" fill="#7A6850"/>
+      <rect x="26" y="38" width="12" height="22" rx="1" fill="#6B3F1F"/>
+      <rect x="22" y="28" width="8" height="8" rx="1" fill="#C8E6F5"/>
+      <rect x="34" y="28" width="8" height="8" rx="1" fill="#C8E6F5"/>
+    </svg>`,
+  },
+  {
+    id: 'building_tent', name: 'テント', category: 'building', price: 150, maxQty: 1,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="32,8 6,56 58,56" fill="#F0A830"/>
+      <polygon points="32,8 20,56 44,56" fill="#E8923A"/>
+      <rect x="24" y="42" width="16" height="14" rx="1" fill="#6B3F1F"/>
+    </svg>`,
+  },
+  {
+    id: 'building_windmill', name: '風車', category: 'building', price: 150, maxQty: 1,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="28" y="20" width="8" height="40" rx="2" fill="#C4956A"/>
+      <circle cx="32" cy="22" r="6" fill="#9A8870"/>
+      <rect x="30" y="4" width="4" height="18" rx="2" fill="#7DB87A"/>
+      <rect x="14" y="20" width="18" height="4" rx="2" fill="#7DB87A"/>
+      <rect x="30" y="22" width="4" height="18" rx="2" fill="#7DB87A"/>
+      <rect x="32" y="20" width="18" height="4" rx="2" fill="#7DB87A"/>
+    </svg>`,
+  },
+  {
+    id: 'building_castle', name: 'お城', category: 'building', price: 150, maxQty: 1,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="14" y="28" width="36" height="32" rx="1" fill="#B4B2A9"/>
+      <rect x="8" y="20" width="12" height="20" rx="1" fill="#9A8870"/>
+      <rect x="44" y="20" width="12" height="20" rx="1" fill="#9A8870"/>
+      <rect x="8" y="14" width="4" height="8" rx="1" fill="#9A8870"/>
+      <rect x="16" y="14" width="4" height="8" rx="1" fill="#9A8870"/>
+      <rect x="44" y="14" width="4" height="8" rx="1" fill="#9A8870"/>
+      <rect x="52" y="14" width="4" height="8" rx="1" fill="#9A8870"/>
+      <rect x="26" y="40" width="12" height="20" rx="1" fill="#6B3F1F"/>
+      <polygon points="32,6 22,20 42,20" fill="#E85454"/>
+    </svg>`,
+  },
+  // 植物（複数購入可）
+  {
+    id: 'plant_sakura', name: '桜の木', category: 'plant', price: 80, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="28" y="36" width="8" height="24" rx="3" fill="#C4956A"/>
+      <circle cx="32" cy="26" r="18" fill="#F4A0B0"/>
+      <circle cx="20" cy="30" r="12" fill="#F0B8C4"/>
+      <circle cx="44" cy="30" r="12" fill="#F0B8C4"/>
+      <circle cx="32" cy="14" r="10" fill="#F0B8C4"/>
+    </svg>`,
+  },
+  {
+    id: 'plant_cactus', name: 'サボテン', category: 'plant', price: 80, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="24" y="20" width="16" height="38" rx="8" fill="#7DB87A"/>
+      <rect x="10" y="28" width="18" height="10" rx="5" fill="#7DB87A"/>
+      <rect x="36" y="22" width="18" height="10" rx="5" fill="#7DB87A"/>
+      <rect x="10" y="24" width="6" height="14" rx="3" fill="#7DB87A"/>
+      <rect x="48" y="18" width="6" height="14" rx="3" fill="#7DB87A"/>
+      <rect x="22" y="56" width="20" height="6" rx="2" fill="#C4956A"/>
+    </svg>`,
+  },
+  {
+    id: 'plant_flowerbed', name: 'お花畑', category: 'plant', price: 80, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="32" cy="54" rx="28" ry="8" fill="#7DB87A"/>
+      <circle cx="16" cy="42" r="7" fill="#F0A830"/>
+      <circle cx="32" cy="38" r="8" fill="#E85454"/>
+      <circle cx="48" cy="42" r="7" fill="#F0A830"/>
+      <circle cx="24" cy="46" r="6" fill="#5490E8"/>
+      <circle cx="40" cy="46" r="6" fill="#F4A0B0"/>
+      <circle cx="16" cy="42" r="3" fill="#FFF"/>
+      <circle cx="32" cy="38" r="3" fill="#FFF"/>
+      <circle cx="48" cy="42" r="3" fill="#FFF"/>
+    </svg>`,
+  },
+  {
+    id: 'plant_mushroom', name: 'きのこ', category: 'plant', price: 80, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="26" y="36" width="12" height="22" rx="4" fill="#F7F3E8"/>
+      <ellipse cx="32" cy="36" rx="22" ry="14" fill="#E85454"/>
+      <circle cx="22" cy="32" r="4" fill="#FFF" opacity="0.7"/>
+      <circle cx="36" cy="26" r="5" fill="#FFF" opacity="0.7"/>
+      <circle cx="46" cy="34" r="3" fill="#FFF" opacity="0.7"/>
+    </svg>`,
+  },
+  {
+    id: 'plant_bigtree', name: '大きな木', category: 'plant', price: 80, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="27" y="38" width="10" height="24" rx="3" fill="#8B5E3C"/>
+      <circle cx="32" cy="28" r="20" fill="#5A9457"/>
+      <circle cx="20" cy="34" r="14" fill="#7DB87A"/>
+      <circle cx="44" cy="34" r="14" fill="#7DB87A"/>
+      <circle cx="32" cy="16" r="12" fill="#7DB87A"/>
+    </svg>`,
+  },
+  // 小物（複数購入可）
+  {
+    id: 'item_bench', name: 'ベンチ', category: 'item', price: 50, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="8" y="28" width="48" height="6" rx="3" fill="#C4956A"/>
+      <rect x="10" y="34" width="6" height="18" rx="2" fill="#8B5E3C"/>
+      <rect x="48" y="34" width="6" height="18" rx="2" fill="#8B5E3C"/>
+      <rect x="10" y="20" width="6" height="14" rx="2" fill="#C4956A"/>
+      <rect x="48" y="20" width="6" height="14" rx="2" fill="#C4956A"/>
+    </svg>`,
+  },
+  {
+    id: 'item_lantern', name: '石灯籠', category: 'item', price: 50, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="20" y="8" width="24" height="4" rx="2" fill="#9A8870"/>
+      <rect x="22" y="12" width="20" height="22" rx="3" fill="#F7F3E8"/>
+      <rect x="24" y="14" width="16" height="18" rx="2" fill="#F0A830" opacity="0.6"/>
+      <rect x="26" y="34" width="12" height="6" rx="1" fill="#9A8870"/>
+      <rect x="28" y="40" width="8" height="18" rx="2" fill="#9A8870"/>
+      <rect x="22" y="56" width="20" height="4" rx="2" fill="#9A8870"/>
+    </svg>`,
+  },
+  {
+    id: 'item_treasure', name: '宝箱', category: 'item', price: 50, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="8" y="32" width="48" height="28" rx="4" fill="#C4956A"/>
+      <path d="M8,32 Q8,18 32,18 Q56,18 56,32 Z" fill="#8B5E3C"/>
+      <rect x="6" y="30" width="52" height="6" rx="2" fill="#F0A830"/>
+      <rect x="26" y="36" width="12" height="10" rx="2" fill="#F0A830"/>
+      <circle cx="32" cy="41" r="3" fill="#C4956A"/>
+    </svg>`,
+  },
+  {
+    id: 'item_signboard', name: '看板', category: 'item', price: 50, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="29" y="32" width="6" height="28" rx="2" fill="#8B5E3C"/>
+      <rect x="10" y="10" width="44" height="26" rx="4" fill="#F0A830"/>
+      <rect x="14" y="14" width="36" height="18" rx="2" fill="#FFF" opacity="0.4"/>
+      <rect x="16" y="19" width="24" height="3" rx="1" fill="#8B5E3C"/>
+      <rect x="16" y="25" width="18" height="3" rx="1" fill="#8B5E3C"/>
+    </svg>`,
+  },
+  {
+    id: 'item_pond', name: '池', category: 'item', price: 50, maxQty: null,
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="32" cy="44" rx="26" ry="14" fill="#5490E8" opacity="0.3"/>
+      <ellipse cx="32" cy="42" rx="24" ry="12" fill="#5490E8"/>
+      <ellipse cx="26" cy="38" rx="8" ry="4" fill="#7EB8F8" opacity="0.5"/>
+      <circle cx="20" cy="44" r="3" fill="#7DB87A"/>
+      <circle cx="44" cy="40" r="4" fill="#7DB87A"/>
+      <circle cx="38" cy="48" r="2" fill="#7DB87A"/>
+    </svg>`,
+  },
+];
+
+/** カテゴリ表示名 */
+const ITEM_CATEGORIES = [
+  { id: 'building', label: '建物' },
+  { id: 'plant',    label: '植物' },
+  { id: 'item',     label: '小物' },
+];
+
 /** 進化閾値（総合力 = HP+MP+ATK+DEF） */
 const EVOLUTION_THRESHOLDS = [
   { stage: 1, power: 100 },
@@ -891,8 +1143,8 @@ const EVOLUTION_THRESHOLDS = [
  * @param {number} [rarityGrowthProb] - レア度別ボーナス確率（省略時はコモン相当）
  * @returns {number} 上昇量（0以上）
  */
-function calcStatGain(current, bonusStat, bonusMult, rarityGrowthProb = RARE_GROWTH_PROB, cap = STAT_CAP) {
-  const ratio = current / cap;
+function calcStatGain(current, bonusStat, bonusMult, rarityGrowthProb = RARE_GROWTH_PROB) {
+  const ratio = current / STAT_CAP;
   const decayEntry = STAT_DECAY.find(d => ratio >= d.threshold);
   const decayMult  = decayEntry ? decayEntry.multiplier : 0.1;
 
@@ -926,20 +1178,18 @@ async function feedPet(pet) {
   // 空腹度回復
   fresh.hunger = Math.min(100, fresh.hunger + FEED_HUNGER_RESTORE);
 
-  const caps = fresh.statCaps ?? { hp: STAT_CAP, mp: STAT_CAP, attack: STAT_CAP, defense: STAT_CAP };
-
   // 全ステータスが上限か判定（攻撃・防御のみ対象）
-  const allCapped = fresh.attack >= caps.attack && fresh.defense >= caps.defense;
+  const allCapped = fresh.attack >= STAT_CAP && fresh.defense >= STAT_CAP;
 
   if (!allCapped) {
     const bonus      = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
     const growthProb = RARITY_GROWTH_PROB[fresh.rarity] ?? RARE_GROWTH_PROB;
 
     const applyGain = (stat) => {
-      if (fresh[stat] >= caps[stat]) return;
+      if (fresh[stat] >= STAT_CAP) return;
       const isBonusStat = bonus.stat === stat || bonus.stat === 'all';
-      const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult, growthProb, caps[stat]);
-      fresh[stat] = Math.min(caps[stat], fresh[stat] + gain);
+      const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult, growthProb);
+      fresh[stat] = Math.min(STAT_CAP, fresh[stat] + gain);
     };
 
     applyGain('attack');
@@ -969,48 +1219,99 @@ async function feedPet(pet) {
 async function waterPet(pet) {
   const fresh = await getPet(pet.id);
   if (!fresh) return;
-  const caps = fresh.statCaps ?? { hp: STAT_CAP, mp: STAT_CAP };
-  fresh.hp = Math.min(caps.hp, fresh.hp + 10);
-  fresh.mp = Math.min(caps.mp, fresh.mp + 10);
+  fresh.hp = Math.min(100, fresh.hp + 10);
+  fresh.mp = Math.min(100, fresh.mp + 10);
   await savePet(fresh);
 }
 
 // ===== T3：ショップ =====
 
+/** ショップの現在タブ */
+let shopCurrentTab = 'building';
+
 async function renderShop() {
   const container = document.getElementById('shop-items');
   container.innerHTML = '';
 
-  const user  = await getUser();
-  const price = 10 * user.level;
+  const user = await getUser();
+  const totalOwned = (user.ownedItems ?? []).reduce((s, o) => s + o.qty, 0);
 
-  // ペットフード情報カード（給餌は庭パネルから）
-  const card = document.createElement('div');
-  card.className = 'shop-card';
-  card.innerHTML = `
-    <div class="shop-card-icon">🍖</div>
-    <div class="shop-card-info">
-      <h3>ペットフード</h3>
-      <p>空腹度回復・HP+20・ステータス上昇</p>
-      <p style="font-size:11px;color:var(--color-text-light);margin-top:4px">🏡 庭のペットをタップして給餌</p>
-    </div>
-    <span class="shop-price">🪙${price}</span>
-  `;
-  container.appendChild(card);
+  // タブバー
+  const tabBar = document.createElement('div');
+  tabBar.className = 'shop-tab-bar';
+  ITEM_CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = `shop-tab${shopCurrentTab === cat.id ? ' active' : ''}`;
+    btn.textContent = cat.label;
+    btn.addEventListener('click', () => {
+      shopCurrentTab = cat.id;
+      renderShop();
+    });
+    tabBar.appendChild(btn);
+  });
+  container.appendChild(tabBar);
 
-  // おみず情報カード
-  const waterCard = document.createElement('div');
-  waterCard.className = 'shop-card';
-  waterCard.innerHTML = `
-    <div class="shop-card-icon">💧</div>
-    <div class="shop-card-info">
-      <h3>おみず（無料）</h3>
-      <p>HP+10回復。通貨がないときでも使える</p>
-      <p style="font-size:11px;color:var(--color-text-light);margin-top:4px">🏡 庭のペットをタップして給餌</p>
-    </div>
-    <span class="shop-price">🪙0</span>
-  `;
-  container.appendChild(waterCard);
+  // グリッド
+  const grid = document.createElement('div');
+  grid.className = 'shop-item-grid';
+
+  const items = ITEM_CATALOG.filter(it => it.category === shopCurrentTab);
+  items.forEach(item => {
+    const owned = (user.ownedItems ?? []).find(o => o.itemId === item.id);
+    const ownedQty = owned?.qty ?? 0;
+
+    // 購入可否判定
+    const isBuildingCapped = item.maxQty === 1 && ownedQty >= 1;
+    const isTotalCapped    = totalOwned >= HOUSING_TOTAL_CAP;
+    const canBuy = !isBuildingCapped && !isTotalCapped && user.currency >= item.price;
+
+    const bgColor = item.category === 'building' ? '#f0ece4'
+                  : item.category === 'plant'    ? '#edf7ec'
+                  : '#fdf4e0';
+
+    const card = document.createElement('div');
+    card.className = 'shop-item-card';
+
+    const svgWrap = document.createElement('div');
+    svgWrap.className = 'shop-item-svg-wrap';
+    svgWrap.style.background = bgColor;
+    svgWrap.innerHTML = item.svg;
+    svgWrap.querySelector('svg').style.cssText = 'width:48px;height:48px';
+
+    const name = document.createElement('div');
+    name.className = 'shop-item-name';
+    name.textContent = item.name;
+
+    const footer = document.createElement('div');
+    footer.className = 'shop-item-footer';
+
+    const price = document.createElement('span');
+    price.className = 'shop-item-price';
+    price.textContent = `🪙${item.price}`;
+
+    const btn = document.createElement('button');
+    btn.className = 'btn-buy';
+    btn.textContent = isBuildingCapped ? '所持済' : isTotalCapped ? '上限' : '購入';
+    btn.disabled = !canBuy;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const { ok } = await spendCurrency(item.price);
+      if (!ok) { alert(`通貨が足りません（必要: 🪙${item.price}）`); btn.disabled = false; return; }
+      const u = await getUser();
+      if (!u.ownedItems) u.ownedItems = [];
+      const entry = u.ownedItems.find(o => o.itemId === item.id);
+      if (entry) { entry.qty += 1; } else { u.ownedItems.push({ itemId: item.id, qty: 1 }); }
+      await saveUser(u);
+      await renderStatusBar();
+      await renderShop();
+    });
+
+    footer.append(price, btn);
+    card.append(svgWrap, name, footer);
+    grid.appendChild(card);
+  });
+
+  container.appendChild(grid);
 }
 
 // ===== T4：訓練画面 =====
@@ -1070,7 +1371,7 @@ async function renderBattle() {
   `;
 
   // 選択ペットのステータス表示
-  const canBlock = selectedPet.hp <= 0 ? '体力0のため訓練不可（餌で回復）'
+  const canBlock = selectedPet.hp <= 0 ? 'HP0のため訓練不可（餌で回復）'
                  : selectedPet.hunger <= 0 ? '空腹度0のため訓練不可（餌で回復）'
                  : null;
 
@@ -1101,26 +1402,21 @@ async function renderBattle() {
     <div style="background:var(--color-white);border-radius:var(--radius-card);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <canvas id="battle-pet-canvas" width="56" height="56" style="border-radius:10px;flex-shrink:0"></canvas>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:15px;margin-bottom:4px">${selectedPet.name ?? selectedPet.type}</div>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <div class="panel-badge-type">${selectedPet.type}</div>
-            <div class="panel-badge-personality">${selectedPet.personality}</div>
-            <div class="panel-badge-attribute">${selectedPet.attribute}</div>
-            <div class="panel-badge-rarity">${selectedPet.rarity}</div>
-          </div>
+        <div>
+          <div style="font-weight:700;font-size:15px">${selectedPet.name ?? selectedPet.type}</div>
+          <div style="font-size:11px;color:var(--color-text-light)">${selectedPet.type} / ${selectedPet.personality} / ${selectedPet.attribute}</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-        ${statBar('体力', selectedPet.hp,      'hp',  selectedPet.statCaps?.hp      ?? STAT_CAP)}
-        ${statBar('魔力', selectedPet.mp,      'mp',  selectedPet.statCaps?.mp      ?? STAT_CAP)}
-        ${statBar('攻撃', selectedPet.attack,  'atk', selectedPet.statCaps?.attack  ?? STAT_CAP)}
-        ${statBar('防御', selectedPet.defense, 'def', selectedPet.statCaps?.defense ?? STAT_CAP)}
+        ${statBar('HP',   selectedPet.hp,      'hp')}
+        ${statBar('MP',   selectedPet.mp,      'mp')}
+        ${statBar('攻撃', selectedPet.attack,  'atk')}
+        ${statBar('防御', selectedPet.defense, 'def')}
       </div>
       ${statBar('満腹度', selectedPet.hunger, 'hunger')}
       <div style="display:flex;gap:6px;margin-top:10px">
         <button id="battle-feed-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0">🍖 餌 🪙${price}</button>
-        <button id="battle-water-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0;background:var(--color-mp)">💧 おみず</button>
+        <button id="battle-water-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0;background:var(--color-mp)">💧 水</button>
       </div>
       ${canBlock ? `<p style="color:var(--color-hp);font-size:12px;margin-top:8px;text-align:center">${canBlock}</p>` : ''}
     </div>
@@ -1169,18 +1465,14 @@ async function renderBattle() {
     const result = await feedPet(fresh);
     if (!result.ok) { alert(result.message); btn.disabled = false; return; }
     const updated = await getPet(battleState.petId);
-    const screenEl = document.getElementById('screen-battle');
-    const screenScrollTop = screenEl ? screenEl.scrollTop : 0;
     const logEl = document.getElementById('battle-log');
-    const logScrollTop = logEl ? logEl.scrollTop : 0;
+    const scrollTop = logEl ? logEl.scrollTop : 0;
     await renderBattle();
     await renderStatusBar();
     await renderCage();
     await renderGarden();
-    const screenElAfter = document.getElementById('screen-battle');
-    if (screenElAfter) screenElAfter.scrollTop = screenScrollTop;
     const logElAfter = document.getElementById('battle-log');
-    if (logElAfter) logElAfter.scrollTop = logScrollTop;
+    if (logElAfter) logElAfter.scrollTop = scrollTop;
     if (result.evolved && updated) showEvolutionOverlay(updated, result.evolutionStage);
   });
 
@@ -1191,18 +1483,14 @@ async function renderBattle() {
     const fresh = await getPet(battleState.petId);
     if (!fresh) { btn.disabled = false; return; }
     await waterPet(fresh);
-    const screenEl = document.getElementById('screen-battle');
-    const screenScrollTop = screenEl ? screenEl.scrollTop : 0;
     const logEl = document.getElementById('battle-log');
-    const logScrollTop = logEl ? logEl.scrollTop : 0;
+    const scrollTop = logEl ? logEl.scrollTop : 0;
     await renderBattle();
     await renderStatusBar();
     await renderCage();
     await renderGarden();
-    const screenElAfter = document.getElementById('screen-battle');
-    if (screenElAfter) screenElAfter.scrollTop = screenScrollTop;
     const logElAfter = document.getElementById('battle-log');
-    if (logElAfter) logElAfter.scrollTop = logScrollTop;
+    if (logElAfter) logElAfter.scrollTop = scrollTop;
   });
 
   // ペット選択クリック
@@ -1448,14 +1736,14 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
   }
 
   // 停止理由ラベル
-  const stopLabel = stopReason === 'hp0'     ? '⚠️ 体力が0になりました'
+  const stopLabel = stopReason === 'hp0'     ? '⚠️ HPが0になりました'
                   : stopReason === 'hunger0' ? '⚠️ 空腹度が0になりました'
                   : '🛑 中断しました';
   const stopColor = stopReason === 'aborted' ? 'var(--color-text-light)' : 'var(--color-hp)';
 
   document.getElementById('battle-result-body').innerHTML = `
     <div style="font-size:12px;color:${stopColor};margin-bottom:6px">${stopLabel}</div>
-    <div>体力 <span style="color:var(--color-hp)">-${lastResult.hpLoss}</span><span style="font-size:11px;color:var(--color-text-light)">（最終戦）</span></div>
+    <div>HP <span style="color:var(--color-hp)">-${lastResult.hpLoss}</span><span style="font-size:11px;color:var(--color-text-light)">（最終戦）</span></div>
     <div>EXP <span style="color:var(--color-main)">+${session.totalExp}</span></div>
     <div>🪙 <span style="color:var(--color-accent)">+${session.totalCurrency}</span></div>
   `;
@@ -1494,6 +1782,255 @@ function showLevelUpOverlay(newLevel) {
   };
 }
 
+// ===== ハウジング：庭フッター・アイテムトレイ・配置モード =====
+
+/** 現在の配置モード選択アイテムID */
+let housingPlaceItemId = null;
+/** 配置プレビュー要素 */
+let housingPreviewEl = null;
+/** トレイの現在タブ */
+let trayCurrentTab = 'building';
+
+/** アイテムトレイを閉じる・配置モードも解除 */
+function closeItemTray() {
+  const tray = document.getElementById('item-tray');
+  if (tray) tray.classList.remove('open');
+  exitPlaceMode();
+}
+
+/** 配置モード解除 */
+function exitPlaceMode() {
+  housingPlaceItemId = null;
+  document.body.classList.remove('housing-place-mode');
+  if (housingPreviewEl) { housingPreviewEl.remove(); housingPreviewEl = null; }
+  const guide = document.getElementById('housing-guide-msg');
+  if (guide) guide.hidden = true;
+  window.removeEventListener('mousemove', onGardenPointerMove);
+  window.removeEventListener('click',     onGardenClick);
+  const gardenScreen = document.getElementById('screen-garden');
+  gardenScreen.removeEventListener('pointerdown', onGardenPointerDown);
+}
+
+/** 庭フッター・トレイの初期化（起動時1回） */
+function initGardenFooter() {
+  // トレイDOMを生成してbodyに追加
+  if (!document.getElementById('item-tray')) {
+    const tray = document.createElement('div');
+    tray.id = 'item-tray';
+    tray.innerHTML = `
+      <div class="item-tray-handle"></div>
+      <div class="item-tray-header">
+        <span style="font-size:13px;font-weight:700;color:var(--color-text)">アイテムを選択</span>
+        <span id="item-tray-count" style="font-size:11px;color:var(--color-text-light)"></span>
+      </div>
+      <div class="item-tray-tabs" id="item-tray-tabs"></div>
+      <div class="item-tray-list" id="item-tray-list"></div>
+    `;
+    document.body.appendChild(tray);
+  }
+
+  // タブ初期化
+  const tabsEl = document.getElementById('item-tray-tabs');
+  tabsEl.innerHTML = '';
+  ITEM_CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = `item-tray-tab${trayCurrentTab === cat.id ? ' active' : ''}`;
+    btn.textContent = cat.label;
+    btn.dataset.catId = cat.id;
+    btn.addEventListener('click', () => {
+      trayCurrentTab = cat.id;
+      document.querySelectorAll('.item-tray-tab').forEach(b =>
+        b.classList.toggle('active', b.dataset.catId === cat.id)
+      );
+      renderTrayItems();
+    });
+    tabsEl.appendChild(btn);
+  });
+
+  // デコボタン
+  document.getElementById('garden-deco-btn').addEventListener('click', () => {
+    const tray = document.getElementById('item-tray');
+    if (tray.classList.contains('open')) {
+      closeItemTray();
+    } else {
+      // ペットパネルを閉じる
+      const panel = document.getElementById('pet-panel');
+      panel.classList.remove('open');
+      panel.classList.add('hidden');
+      panelOpenPetId = null;
+      renderTrayItems();
+      tray.classList.add('open');
+    }
+  });
+}
+
+/** トレイのアイテム一覧を描画 */
+async function renderTrayItems() {
+  const list = document.getElementById('item-tray-list');
+  const countEl = document.getElementById('item-tray-count');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const user = await getUser();
+  const totalOwned = (user.ownedItems ?? []).reduce((s, o) => s + o.qty, 0);
+  if (countEl) countEl.textContent = `合計 ${totalOwned} / ${HOUSING_TOTAL_CAP}`;
+
+  const items = ITEM_CATALOG.filter(it => it.category === trayCurrentTab);
+  items.forEach(item => {
+    const owned = (user.ownedItems ?? []).find(o => o.itemId === item.id);
+    const qty   = owned?.qty ?? 0;
+
+    const card = document.createElement('div');
+    card.className = `item-tray-card${qty === 0 ? ' unavailable' : ''}`;
+
+    const iconBox = document.createElement('div');
+    iconBox.className = `item-tray-icon${housingPlaceItemId === item.id ? ' selected' : ''}`;
+    iconBox.innerHTML = item.svg;
+    iconBox.querySelector('svg').style.cssText = 'width:36px;height:36px;display:block';
+
+    if (qty > 1) {
+      const badge = document.createElement('span');
+      badge.className = 'item-qty-badge';
+      badge.textContent = `×${qty}`;
+      iconBox.appendChild(badge);
+    }
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'item-tray-name';
+    nameEl.textContent = item.name;
+
+    card.append(iconBox, nameEl);
+
+    if (qty > 0) {
+      card.addEventListener('click', () => {
+        closeItemTray();
+        enterPlaceMode(item);
+      });
+    }
+
+    list.appendChild(card);
+  });
+}
+
+/** 配置モード開始 */
+function enterPlaceMode(item) {
+  housingPlaceItemId = item.id;  // closeItemTray→exitPlaeModeでnullされるため再設定
+  document.body.classList.add('housing-place-mode');
+
+  // プレビュー要素をbody直下・position:fixedで生成（座標変換不要）
+  const baseSize = ITEM_BASE_SIZE[item.category] ?? 48;
+  housingPreviewEl = document.createElement('div');
+  housingPreviewEl.className = 'garden-item-preview';
+  housingPreviewEl.style.position = 'fixed';
+  housingPreviewEl.innerHTML = item.svg;
+  housingPreviewEl.querySelector('svg').style.cssText = `width:${baseSize}px;height:${baseSize}px;display:block`;
+  document.body.appendChild(housingPreviewEl);
+
+  // 初期位置：画面中央
+  housingPreviewEl.style.left = `${window.innerWidth  / 2}px`;
+  housingPreviewEl.style.top  = `${window.innerHeight / 2}px`;
+
+  // ガイドメッセージ
+  let guide = document.getElementById('housing-guide-msg');
+  if (!guide) {
+    guide = document.createElement('div');
+    guide.id = 'housing-guide-msg';
+    guide.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:12px;font-weight:700;padding:6px 16px;border-radius:999px;pointer-events:none;z-index:9999;white-space:nowrap';
+    document.body.appendChild(guide);
+  }
+  guide.textContent = 'クリックで配置・庭の外でキャンセル';
+  guide.hidden = false;
+
+  window.addEventListener('mousemove', onGardenPointerMove);
+  window.addEventListener('click',     onGardenClick);
+  // タッチ用
+  const gardenScreen = document.getElementById('screen-garden');
+  gardenScreen.addEventListener('pointerdown', onGardenPointerDown);
+}
+
+/** ポインタ座標を庭エリアの % に変換するユーティリティ */
+function _gardenPct(e, gardenEl) {
+  const rect = gardenEl.getBoundingClientRect();
+  return {
+    x: ((e.clientX - rect.left) / rect.width)  * 100,
+    y: ((e.clientY - rect.top)  / rect.height) * 100,
+  };
+}
+
+/** プレビューをマウス位置に追従（position:fixed なので clientX/Y 直接使用） */
+function onGardenPointerMove(e) {
+  if (!housingPreviewEl || !housingPlaceItemId) return;
+  housingPreviewEl.style.left = `${e.clientX}px`;
+  housingPreviewEl.style.top  = `${e.clientY}px`;
+}
+
+/** PC用：マウスクリックで配置確定（window登録） */
+function onGardenClick(e) {
+  if (!housingPlaceItemId) return;
+  if (e.target.closest('#item-tray') || e.target.closest('#garden-footer')) return;
+  if (e.target.closest('#bottom-nav') || e.target.closest('.overlay:not(.hidden)')) return;
+  _confirmPlace(e);
+}
+
+/** pointerdown: スマホ（touch）のみ配置確定 */
+function onGardenPointerDown(e) {
+  if (e.pointerType !== 'touch') return;
+  _confirmPlace(e);
+}
+
+/** pointerup: 現在未使用（touch は pointerdown で確定済み）。将来拡張用に残す */
+function onGardenPointerUp(e) {
+  // no-op
+}
+
+/** 配置確定処理（タップ・クリック共通） */
+async function _confirmPlace(e) {
+  if (!housingPlaceItemId) return;
+  const itemId = housingPlaceItemId;
+  const item   = ITEM_CATALOG.find(it => it.id === itemId);
+  if (!item) { exitPlaceMode(); return; }
+
+  const gardenEl = document.getElementById('screen-garden');
+  const rect = gardenEl.getBoundingClientRect();
+  const px = e.clientX - rect.left;
+  const py = e.clientY - rect.top;
+
+  // 庭エリア外・草原エリア外（空エリア）でキャンセル
+  if (px < 0 || px > rect.width || py < 0 || py > rect.height) {
+    exitPlaceMode();
+    return;
+  }
+
+  // DB保存用に%変換
+  const xPct = Math.round((px / rect.width)  * 1000) / 10;
+  const yPct = Math.round((py / rect.height) * 1000) / 10;
+
+  // 草原エリア上端より上は配置不可
+  if (yPct < GARDEN_Y_MIN) { exitPlaceMode(); return; }
+
+  // 線形補間でsizeScale算出（GARDEN_Y_MIN=遠×0.5 〜 100=近×1.5）
+  const sizeScale = DEPTH_SCALE_MIN + (yPct - GARDEN_Y_MIN) / (100 - GARDEN_Y_MIN) * (DEPTH_SCALE_MAX - DEPTH_SCALE_MIN);
+
+  const u = await getUser();
+  if (!u.placedItems) u.placedItems = [];
+  if (!u.ownedItems)  u.ownedItems  = [];
+
+  const own = u.ownedItems.find(o => o.itemId === itemId);
+  if (!own || own.qty <= 0) { exitPlaceMode(); return; }
+
+  own.qty -= 1;
+  if (own.qty <= 0) u.ownedItems = u.ownedItems.filter(o => o.itemId !== itemId);
+  const uid = `${Date.now()}_${Math.random()}`;
+  u.placedItems.push({ uid, itemId, x: xPct, y: yPct, sizeScale });
+  await saveUser(u);
+
+  const guide = document.getElementById('housing-guide-msg');
+  if (guide) guide.hidden = true;
+
+  exitPlaceMode();
+  await renderGarden();
+}
+
 // ===== 庭スロット拡張 =====
 
 /**
@@ -1521,23 +2058,6 @@ async function syncGardenSlots() {
   if (user.gardenSlots < expected) {
     user.gardenSlots = expected;
     await saveUser(user);
-  }
-}
-
-/**
- * statCapsを持たない既存ペットに起動時付与・現在値が上限超過の場合はクランプ
- */
-async function syncStatCaps() {
-  const pets = await getAllPets();
-  for (const pet of pets) {
-    if (pet.statCaps) continue;
-    pet.statCaps = calcStatCaps(pet.typeIndex ?? 0, pet.personalityIndex ?? 4, pet.rarity ?? '一般');
-    // 現在値が新上限を超える場合クランプ
-    pet.hp      = Math.min(pet.hp,      pet.statCaps.hp);
-    pet.mp      = Math.min(pet.mp,      pet.statCaps.mp);
-    pet.attack  = Math.min(pet.attack,  pet.statCaps.attack);
-    pet.defense = Math.min(pet.defense, pet.statCaps.defense);
-    await savePet(pet);
   }
 }
 
@@ -1621,136 +2141,124 @@ function showReleaseConfirmDialog(pet) {
   };
 }
 
-// ===== 繁殖画面 =====
-
-/** 繁殖画面のチェック状態をDOMに反映（再描画なし） */
-function updateBreedSelection() {
-  document.querySelectorAll('[data-breed-card]').forEach(card => {
-    const id = card.getAttribute('data-breed-card');
-    const isSelected = selectedBreedIds.includes(id);
-    card.style.border = `2px solid ${isSelected ? 'var(--color-main)' : 'transparent'}`;
-    card.style.background = isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-white)';
-    const chk = card.querySelector('[data-breed-check]');
-    if (chk) chk.textContent = isSelected ? '✅' : '⬜';
-  });
-  const execBtn = document.getElementById('breed-footer-exec');
-  if (execBtn) execBtn.disabled = selectedBreedIds.length !== 2;
-}
+// ===== 繁殖オーバーレイ =====
 
 /**
- * 繁殖画面を描画する（screen-breed内）
- * selectedBreedIdsはモジュール変数で保持
+ * 繁殖UI：2体選択→確認→実行
+ * @param {Pet[]} pets
+ * @param {User} user
  */
-async function renderBreed() {
-  const area = document.getElementById('breed-area');
-  const latestPets = await getAllPets();
-  const latestUser = await getUser();
-  const cost = BREED_COST_MULTIPLIER * latestUser.level;
+async function showBreedOverlay(pets, user) {
+  let overlay = document.getElementById('overlay-breed');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'overlay-breed';
+    overlay.className = 'overlay';
+    document.body.appendChild(overlay);
+  }
 
-  // コスト説明（grid-column:1/-1 で2列結合）
-  area.innerHTML = `
-    <p style="grid-column:1/-1;font-size:12px;color:var(--color-text-light);margin:0">
-      2体選択・空腹度${BREED_HUNGER_MIN}以上・進化MAX必要 / 🪙${cost}
-    </p>
-  `;
+  // 選択状態管理
+  let selectedIds = [];
 
-  latestPets.forEach(pet => {
-    // 進化MAXに達していないペットは非表示
-    if ((pet.evolutionStage ?? 0) < BREED_EVOLUTION_MIN) return;
-
-    const isSelected = selectedBreedIds.includes(pet.id);
-    const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
-
-    // カード本体
-    const card = document.createElement('div');
-    card.setAttribute('data-breed-card', pet.id);
-    card.style.cssText = `position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;background:${isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-white)'};border-radius:${getComputedStyle(document.documentElement).getPropertyValue('--radius-card').trim()};padding:10px 8px;border:2px solid ${isSelected ? 'var(--color-main)' : 'transparent'};box-shadow:var(--shadow);cursor:pointer;opacity:${canSelect ? '1' : '0.45'}`;
-
-    // ペット画像
-    const canvas = document.createElement('canvas');
-    canvas.width = 56; canvas.height = 56;
-    canvas.style.cssText = 'border-radius:10px;flex-shrink:0';
-    drawPetToCanvas(pet, canvas, 56, 8);
-
-    // 名前・種類
-    const info = document.createElement('div');
-    info.style.cssText = 'width:100%;text-align:center;min-width:0';
-    info.innerHTML = `
-      <div data-breed-name="1" style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
-      <div style="font-size:10px;color:var(--color-text-light)">空腹${pet.hunger}</div>
+  const render = async () => {
+    // 毎回最新データを取得（給餌等による変化を反映）
+    const latestPets = await getAllPets();
+    const latestUser = await getUser();
+    const cost = BREED_COST_MULTIPLIER * latestUser.level;
+    overlay.innerHTML = `
+      <div class="overlay-card" style="width:min(340px,92vw);max-height:80vh;overflow-y:auto">
+        <h3 style="font-size:16px">💞 繁殖</h3>
+        <p style="font-size:12px;color:var(--color-text-light);margin-top:-6px">
+          2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
+        </p>
+        <div id="breed-pet-list" style="display:flex;flex-direction:column;gap:8px;width:100%;margin:10px 0"></div>
+        <div style="display:flex;gap:8px;width:100%;margin-top:4px">
+          <button class="btn-primary" id="breed-exec-btn"
+            style="flex:1;background:var(--color-accent)"
+            ${selectedIds.length !== 2 ? 'disabled' : ''}>
+            繁殖！
+          </button>
+          <button class="btn-primary" id="breed-cancel-btn" style="flex:1;background:#aaa">キャンセル</button>
+        </div>
+      </div>
     `;
 
-    // チェックボタン（右上オーバーレイ）
-    const chkBtn = document.createElement('button');
-    chkBtn.setAttribute('data-breed-check', '1');
-    chkBtn.textContent = isSelected ? '✅' : '⬜';
-    chkBtn.style.cssText = 'position:absolute;top:4px;right:4px;background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1';
-    chkBtn.setAttribute('aria-label', '選択');
+    const list = document.getElementById('breed-pet-list');
+    latestPets.forEach(pet => {
+      const isSelected = selectedIds.includes(pet.id);
+      const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:center;gap:10px;background:${isSelected ? 'rgba(125,184,122,0.15)' : 'var(--color-bg)'};border-radius:10px;padding:8px 12px;cursor:${canSelect ? 'pointer' : 'default'};border:2px solid ${isSelected ? 'var(--color-main)' : 'transparent'};opacity:${canSelect ? '1' : '0.45'}`;
 
-    if (canSelect) {
-      chkBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (selectedBreedIds.includes(pet.id)) {
-          selectedBreedIds = selectedBreedIds.filter(id => id !== pet.id);
-        } else if (selectedBreedIds.length < 2) {
-          selectedBreedIds.push(pet.id);
-        }
-        updateBreedSelection();
-      });
-    }
+      const canvas = document.createElement('canvas');
+      canvas.width = 40; canvas.height = 40;
+      canvas.style.cssText = 'border-radius:8px;flex-shrink:0';
+      drawPetToCanvas(pet, canvas, 40, 6);
 
-    // カード本体タップ → ステータスパネル表示
-    card.addEventListener('click', async () => {
-      const latest = await getPet(pet.id);
-      if (latest) showPetPanel(latest);
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0';
+      info.innerHTML = `
+        <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pet.name ?? pet.type}</div>
+        <div style="font-size:10px;color:var(--color-text-light)">${pet.type} / 空腹${pet.hunger}</div>
+      `;
+
+      if (canSelect) {
+        row.addEventListener('click', async () => {
+          if (isSelected) {
+            selectedIds = selectedIds.filter(id => id !== pet.id);
+          } else if (selectedIds.length < 2) {
+            selectedIds.push(pet.id);
+          }
+          await render();
+        });
+      }
+      row.append(canvas, info);
+      list.appendChild(row);
     });
 
-    card.append(canvas, info, chkBtn);
-    area.appendChild(card);
-  });
+    document.getElementById('breed-cancel-btn').onclick = () => overlay.classList.add('hidden');
 
-  // footerボタン状態更新
-  const execBtn = document.getElementById('breed-footer-exec');
-  execBtn.disabled = selectedBreedIds.length !== 2;
+    document.getElementById('breed-exec-btn').onclick = async () => {
+      if (selectedIds.length !== 2) return;
+      const btn = document.getElementById('breed-exec-btn');
+      btn.disabled = true;
+      btn.textContent = '合成中...';
 
-  execBtn.onclick = async () => {
-    if (selectedBreedIds.length !== 2) return;
-    execBtn.disabled = true;
+      // 所持上限チェック
+      const allPets = await getAllPets();
+      if (allPets.length >= BREED_PET_CAP) {
+        alert(`ペットの所持上限（${BREED_PET_CAP}体）に達しています`);
+        btn.disabled = false; btn.textContent = '繁殖！'; return;
+      }
 
-    const allPets = await getAllPets();
-    if (allPets.length >= BREED_PET_CAP) {
-      alert(`ペットの所持上限（${BREED_PET_CAP}体）に達しています`);
-      execBtn.disabled = false; return;
-    }
+      // 通貨消費（最新userで計算）
+      const currentUser = await getUser();
+      const currentCost = BREED_COST_MULTIPLIER * currentUser.level;
+      const { ok } = await spendCurrency(currentCost);
+      if (!ok) {
+        alert(`通貨が足りません（必要: 🪙${currentCost}）`);
+        btn.disabled = false; btn.textContent = '繁殖！'; return;
+      }
 
-    const currentUser = await getUser();
-    const currentCost = BREED_COST_MULTIPLIER * currentUser.level;
-    const { ok } = await spendCurrency(currentCost);
-    if (!ok) {
-      alert(`通貨が足りません（必要: 🪙${currentCost}）`);
-      execBtn.disabled = false; return;
-    }
+      // 親データ取得
+      const [pA, pB] = await Promise.all([getPet(selectedIds[0]), getPet(selectedIds[1])]);
+      if (!pA || !pB) { btn.disabled = false; btn.textContent = '繁殖！'; return; }
 
-    const [pA, pB] = await Promise.all([getPet(selectedBreedIds[0]), getPet(selectedBreedIds[1])]);
-    if (!pA || !pB) { execBtn.disabled = false; return; }
+      // 親どちらかの画像を50/50で継承→子生成→保存
+      const inheritedBlob = Math.random() < 0.5 ? pA.imageData : pB.imageData;
+      const child          = breedPet(pA, pB, inheritedBlob);
+      await registerNewPet(child);
 
-    const inheritedBlob = Math.random() < 0.5 ? pA.imageData : pB.imageData;
-    const child = breedPet(pA, pB, inheritedBlob);
-    await registerNewPet(child);
-
-    selectedBreedIds = [];
-    await renderStatusBar();
-    await renderEncyclopedia();
-    await renderCage();
-    showBreedResultOverlay(child);
+      overlay.classList.add('hidden');
+      await renderStatusBar();
+      await renderEncyclopedia();
+      await renderCage();
+      showBreedResultOverlay(child);
+    };
   };
 
-  document.getElementById('breed-footer-cancel').onclick = () => {
-    switchScreen('cage');
-    document.querySelectorAll('.nav-btn').forEach(b =>
-      b.classList.toggle('active', b.dataset.screen === 'cage')
-    );
-  };
+  await render();
+  overlay.classList.remove('hidden');
 }
 
 /** 繁殖完了オーバーレイ */
@@ -1778,7 +2286,7 @@ function showBreedResultOverlay(child) {
     <div>性格: <strong>${child.personality}</strong></div>
     <div>属性: <strong>${child.attribute}</strong></div>
     <div>レア度: <strong>${child.rarity}</strong></div>
-    <div style="font-size:11px;color:var(--color-text-light)">体力 ${child.hp} / 魔力 ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
+    <div style="font-size:11px;color:var(--color-text-light)">HP ${child.hp} / MP ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
   `;
   overlay.classList.remove('hidden');
   const closeBreedResult = () => {
