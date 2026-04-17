@@ -494,7 +494,9 @@ body {
 }
 body.screen-cage #cage-footer { display: flex; }
 body.screen-breed #cage-footer { display: flex; }
-/* 繁殖画面ではケージ用3ボタンを隠し、繁殖用2ボタンを表示 */
+/* 繁殖用ボタンはデフォルト非表示・screen-breed時のみ表示 */
+#breed-footer-exec,
+#breed-footer-cancel { display: none; }
 body.screen-breed #cage-btn-generate,
 body.screen-breed #cage-btn-breed,
 body.screen-breed #cage-btn-edit     { display: none; }
