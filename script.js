@@ -2195,21 +2195,27 @@ async function renderBreedScreen() {
 async function _renderBreedArea() {
   const area = document.getElementById('breed-area');
   if (!area) return;
-  const pets = await getAllPets();
+  const pets = (await getAllPets()).filter(p => (p.evolutionStage ?? 0) >= BREED_EVOLUTION_MIN);
   const user = await getUser();
   const cost = BREED_COST_MULTIPLIER * user.level;
 
   area.innerHTML = `
     <p style="font-size:12px;color:var(--color-text-light);padding:0 16px;margin-bottom:10px">
-      2体選択・空腹度${BREED_HUNGER_MIN}以上・進化${BREED_EVOLUTION_MIN}段階以上が必要 / 🪙${cost}
+      2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
     </p>
     <div id="breed-pet-list" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 16px"></div>
   `;
 
   const list = document.getElementById('breed-pet-list');
+  if (pets.length === 0) {
+    list.style.display = 'block';
+    list.innerHTML = `<p style="font-size:13px;color:var(--color-text-light);text-align:center;padding:24px 0">進化2段階以上のペットがいません</p>`;
+    _updateBreedExecBtn();
+    return;
+  }
   pets.forEach(pet => {
     const isSelected = breedSelectedIds.includes(pet.id);
-    const canSelect  = pet.hunger >= BREED_HUNGER_MIN && (pet.evolutionStage ?? 0) >= BREED_EVOLUTION_MIN;
+    const canSelect  = pet.hunger >= BREED_HUNGER_MIN;
 
     const card = document.createElement('div');
     card.className = `cage-card${isSelected ? ' in-garden' : ''}`;
