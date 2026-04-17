@@ -54,6 +54,7 @@ function wrapWithGenerationBadge(iconEl, generation) {
     initNavigation();
     initGenerateScreen();
     initGardenFooter();
+    switchScreen('garden');
     startHungerTimer();
   } catch (err) {
     console.error('起動エラー:', err);
@@ -512,22 +513,26 @@ async function renderGarden() {
       el.setPointerCapture(e.pointerId);
     };
 
+    const FOOTER_H = 52; // garden-footerの高さ（style.css固定値）
+
     const onMove = (e) => {
       if (document.body.classList.contains('housing-place-mode')) return;
       if (!pressTimer && !isDragging) return;
       const rect = gardenScreen.getBoundingClientRect();
       const curPx = e.clientX - rect.left;
       const curPy = e.clientY - rect.top;
-      const dx = curPx - (parseFloat(el.style.left) - dragOffX);
-      const dy = curPy - (parseFloat(el.style.top)  - dragOffY);
+      const itemPx = parseFloat(el.style.left) / 100 * rect.width;
+      const itemPy = parseFloat(el.style.top)  / 100 * rect.height;
+      const dx = (curPx + dragOffX) - itemPx;
+      const dy = (curPy + dragOffY) - itemPy;
       if (!isDragging && Math.abs(dx) + Math.abs(dy) > 5) {
         isDragging = true;
         clearTimeout(pressTimer);
         pressTimer = null;
       }
       if (isDragging) {
-        const newPx = Math.max(0, Math.min(rect.width,  curPx + dragOffX));
-        const newPy = Math.max(0, Math.min(rect.height, curPy + dragOffY));
+        const newPx = Math.max(0, Math.min(rect.width  - size, curPx + dragOffX));
+        const newPy = Math.max(0, Math.min(rect.height - FOOTER_H - size, curPy + dragOffY));
         el.style.left = `${newPx / rect.width  * 100}%`;
         el.style.top  = `${newPy / rect.height * 100}%`;
       }
@@ -541,8 +546,8 @@ async function renderGarden() {
       isDragging = false;
 
       const rect = gardenScreen.getBoundingClientRect();
-      const newPx = Math.max(0, Math.min(rect.width,  e.clientX - rect.left + dragOffX));
-      const newPy = Math.max(0, Math.min(rect.height, e.clientY - rect.top  + dragOffY));
+      const newPx = Math.max(0, Math.min(rect.width  - size, e.clientX - rect.left + dragOffX));
+      const newPy = Math.max(0, Math.min(rect.height - FOOTER_H - size, e.clientY - rect.top  + dragOffY));
       const newX = Math.round((newPx / rect.width)  * 1000) / 10;
       const newY = Math.round((newPy / rect.height) * 1000) / 10;
       const newScale = newY <= DEPTH_THRESHOLD * 100 ? DEPTH_SCALE_FAR : DEPTH_SCALE_NEAR;
