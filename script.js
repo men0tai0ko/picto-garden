@@ -554,14 +554,35 @@ async function renderGarden() {
 /** パネルが開いているペットID（タイマーからの再描画用） */
 let panelOpenPetId = null;
 
-/** ランダム名称リスト（ひらがな形容詞＋カタカナ名詞・petGeneratorと同形式） */
-const RANDOM_PET_NAMES = [
-  'あかいトラ', 'あおいリュウ', 'しろいホシ', 'くろいカゼ', 'きいろヒカリ',
-  'つよいウミ', 'はやいモリ', 'やさしイワ', 'かわいクモ', 'ひかるナミ',
-  'するどキバ', 'こわいツメ', 'しずかタマ', 'おおきホノ', 'ふかいコオリ',
-  'たかいムシ', 'にぎやハナ', 'ちいさツキ', 'にぶいカミ', 'ふるいタイヨ',
-  'くろいリュウ', 'あおいウミ', 'しろいモリ', 'つよいホシ',
+/**
+ * ランダム名生成（petGenerator.jsのNAME_ADJECTIVES/NAME_NOUNSと同テーブル）
+ * generateName()はpetGenerator内部関数のためこちらで同等ロジックを保持
+ */
+const _RAND_ADJ = [
+  'あかい', 'あおい', 'きいろ', 'くろい', 'しろい',
+  'つよい', 'はやい', 'おおき', 'ちいさ', 'ひかる',
+  'やさし', 'こわい', 'かわい', 'するど', 'ふかい',
+  'たかい', 'にぶい', 'しずか', 'にぎや', 'ふるい',
+  'あつい', 'つめた', 'かたい', 'やわら', 'くらい',
+  'あかる', 'おもい', 'かるい', 'ながい', 'みじか',
+  'まるい', 'するり', 'ぬるい', 'にごり', 'すみき',
+  'はげし', 'おだや', 'ふわり', 'ぎらり', 'ひそか',
 ];
+const _RAND_NOUN = [
+  'トラ', 'リュウ', 'ホシ', 'カゼ', 'ヒカリ',
+  'ウミ', 'モリ', 'イワ', 'クモ', 'ナミ',
+  'キバ', 'ツメ', 'タマ', 'ホノ', 'コオリ',
+  'ムシ', 'ハナ', 'ツキ', 'タイヨ', 'カミ',
+  'ユキ', 'カワ', 'ソラ', 'クサ', 'ミズ',
+  'ケムリ', 'カゲ', 'ヒカリ', 'ドロ', 'スナ',
+  'キリ', 'アメ', 'ライ', 'ドク', 'タタリ',
+  'エン', 'ミコ', 'タキ', 'ヤマ', 'シマ',
+];
+function generateRandomPetName() {
+  const adj  = _RAND_ADJ[Math.floor(Math.random() * _RAND_ADJ.length)];
+  const noun = _RAND_NOUN[Math.floor(Math.random() * _RAND_NOUN.length)];
+  return (adj + noun).slice(0, 6);
+}
 
 async function showPetPanel(pet) {
   const panel  = document.getElementById('pet-panel');
@@ -657,7 +678,7 @@ async function showPetPanel(pet) {
   document.getElementById('panel-random-name-btn').addEventListener('click', async () => {
     const fresh = await getPet(pet.id);
     if (!fresh) return;
-    fresh.name = RANDOM_PET_NAMES[Math.floor(Math.random() * RANDOM_PET_NAMES.length)];
+    fresh.name = generateRandomPetName();
     await savePet(fresh);
     await renderGarden();
     showPetPanel(fresh);
