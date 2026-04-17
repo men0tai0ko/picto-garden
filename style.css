@@ -544,3 +544,18 @@ body.screen-cage #cage-footer { display: flex; }
 /* ===== 進化フレーム枠 ===== */
 .evo-stage-1 { box-shadow: 0 0 0 3px var(--color-evo-stage1); }
 .evo-stage-2 { box-shadow: 0 0 0 3px var(--color-accent), 0 0 8px 2px rgba(240,168,48,0.5); }
+
+/* ===== 世代バッジ ===== */
+.pet-icon-wrap { position: relative; display: inline-block; }
+.generation-badge {
+  position: absolute;
+  bottom: 3px; right: 3px;
+  background: var(--color-accent);
+  color: var(--color-white);
+  font-size: 9px; font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 999px;
+  line-height: 1.4;
+  text-shadow: 0 0 2px rgba(58,46,30,0.8);
+  pointer-events: none;
+}

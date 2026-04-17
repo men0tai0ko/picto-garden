@@ -380,5 +380,6 @@ export function breedPet(parentA, parentB, inheritedBlob) {
     rarity,
     imageData:        inheritedBlob,
     evolutionStage:   0,
+    generation:       Math.max(parentA.generation ?? 0, parentB.generation ?? 0) + 1,
   };
 }

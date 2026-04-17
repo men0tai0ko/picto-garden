@@ -19,6 +19,25 @@ function getEvolutionClass(stage) {
   return '';
 }
 
+/**
+ * 要素をpet-icon-wrapで包み、generation>=1なら世代バッジを追加して返す
+ * @param {HTMLElement} iconEl - canvasまたはimg
+ * @param {number} generation
+ * @returns {HTMLElement} wrap（バッジなし時はwrapのみ）
+ */
+function wrapWithGenerationBadge(iconEl, generation) {
+  const wrap = document.createElement('div');
+  wrap.className = 'pet-icon-wrap';
+  wrap.appendChild(iconEl);
+  if (generation >= 1) {
+    const badge = document.createElement('span');
+    badge.className = 'generation-badge';
+    badge.textContent = `${generation}世`;
+    wrap.appendChild(badge);
+  }
+  return wrap;
+}
+
 // ===== 起動 =====
 (async () => {
   try {
@@ -265,7 +284,7 @@ async function renderCage() {
     name.setAttribute('data-cage-name', '1');
     name.textContent = pet.name ?? pet.type;
 
-    card.append(imgEl, name);
+    card.append(wrapWithGenerationBadge(imgEl, pet.generation ?? 0), name);
 
     // 編集モード時のみ削除ボタンを追加
     if (cageEditMode) {
@@ -508,7 +527,7 @@ async function renderGarden() {
     const nameLabel = document.createElement('div');
     nameLabel.style.cssText = 'font-size:10px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.6);font-weight:700;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center';
     nameLabel.textContent = pet.name ?? pet.type;
-    petWrapper.append(canvas, nameLabel);
+    petWrapper.append(wrapWithGenerationBadge(canvas, pet.generation ?? 0), nameLabel);
     petsArea.appendChild(petWrapper);
   }
 }
@@ -598,9 +617,21 @@ async function showPetPanel(pet) {
   });
 
   // ペットアイコン描画
-  drawPetToCanvas(pet, document.getElementById('panel-pet-canvas'), 48, 8);
+  const panelCanvas = document.getElementById('panel-pet-canvas');
+  drawPetToCanvas(pet, panelCanvas, 48, 8);
   const panelEvoClass = getEvolutionClass(pet.evolutionStage ?? 0);
-  if (panelEvoClass) document.getElementById('panel-pet-canvas').classList.add(panelEvoClass);
+  if (panelEvoClass) panelCanvas.classList.add(panelEvoClass);
+  // 世代バッジをcanvasの親要素に追加
+  if ((pet.generation ?? 0) >= 1) {
+    const panelWrap = panelCanvas.parentElement;
+    if (panelWrap && !panelWrap.querySelector('.generation-badge')) {
+      panelWrap.style.position = 'relative';
+      const badge = document.createElement('span');
+      badge.className = 'generation-badge';
+      badge.textContent = `${pet.generation}世`;
+      panelWrap.appendChild(badge);
+    }
+  }
 
   // サイコロボタン：ランダム名をIndexedDBに保存してパネル再描画
   document.getElementById('panel-random-name-btn').addEventListener('click', async () => {
