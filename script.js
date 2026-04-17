@@ -253,7 +253,7 @@ async function renderCage() {
   const pets = await getAllPets();
 
   pets.forEach(pet => {
-    const card    = document.createElement('div');
+    const card = document.createElement('div');
     card.className = 'cage-card';
     card.setAttribute('data-cage-card', pet.id);
     if (user.gardenPetIds.includes(pet.id)) card.classList.add('in-garden');
@@ -268,10 +268,18 @@ async function renderCage() {
     const evoClass = getEvolutionClass(pet.evolutionStage ?? 0);
     if (evoClass) imgEl.classList.add(evoClass);
 
+    // 名前行（常時表示）
     const name = document.createElement('div');
     name.className   = 'cage-card-name';
+    name.setAttribute('data-cage-name', '1');
     name.textContent = pet.name ?? pet.type;
 
+    // 展開エリア（タップで表示/非表示）
+    const expandArea = document.createElement('div');
+    expandArea.setAttribute('data-cage-expand', '1');
+    expandArea.style.display = 'none';
+
+    // バッジ
     const badges = document.createElement('div');
     badges.className = 'cage-card-badges';
     badges.innerHTML = `
@@ -280,31 +288,73 @@ async function renderCage() {
       <span class="badge">${pet.rarity}</span>
     `;
 
+    // ステータスバー
     const hpBar = document.createElement('div');
     hpBar.style.cssText = 'width:100%;margin-top:4px';
     hpBar.setAttribute('data-cage-statbar', '1');
     hpBar.innerHTML = cageStatBarHTML(pet);
 
-    // 給餌ボタン（カード内インライン）
-    const feedRow = document.createElement('div');
-    feedRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;width:100%';
+    // リネーム行（✏️・🎲）
+    const renameRow = document.createElement('div');
+    renameRow.style.cssText = 'display:flex;align-items:center;gap:4px;margin-top:6px';
+    const renameLabel = document.createElement('span');
+    renameLabel.style.cssText = 'font-size:11px;color:var(--color-text-light);flex:1';
+    renameLabel.textContent = '名前を変更';
+    const renamePenBtn = document.createElement('button');
+    renamePenBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:13px;padding:2px 3px;color:var(--color-text-light)';
+    renamePenBtn.textContent = '✏️';
+    const renameDiceBtn = document.createElement('button');
+    renameDiceBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:13px;padding:2px 3px;color:var(--color-text-light)';
+    renameDiceBtn.textContent = '🎲';
+    renameRow.append(renameLabel, renamePenBtn, renameDiceBtn);
 
-    const price   = 10 * user.level;
-    const feedBtn  = document.createElement('button');
+    // 給餌ボタン行
+    const feedRow = document.createElement('div');
+    feedRow.style.cssText = 'display:flex;gap:6px;margin-top:6px;width:100%';
+    const price = 10 * user.level;
+    const feedBtn = document.createElement('button');
     feedBtn.className = 'btn-buy';
     feedBtn.style.cssText = 'flex:1;font-size:11px;padding:6px 0';
     feedBtn.setAttribute('data-cage-feedbtn', '1');
     feedBtn.textContent = `🍖 餌 🪙${price}`;
-
     const waterBtn = document.createElement('button');
     waterBtn.className = 'btn-buy';
     waterBtn.style.cssText = 'flex:1;font-size:11px;padding:6px 0;background:var(--color-mp)';
     waterBtn.textContent = '💧 水';
-
     feedRow.append(feedBtn, waterBtn);
-    card.append(imgEl, name, badges, hpBar, feedRow);
 
-    // 給餌ボタン：カードclickイベントへの伝播を止める
+    // 庭に出すボタン
+    const gardenBtn = document.createElement('button');
+    const inGardenNow = user.gardenPetIds.includes(pet.id);
+    gardenBtn.style.cssText = 'width:100%;margin-top:6px;padding:6px 0;border-radius:var(--radius-btn);border:none;font-size:11px;font-weight:700;cursor:pointer;background:var(--color-main);color:var(--color-white)';
+    gardenBtn.textContent = inGardenNow ? '🏡 庭から外す' : '🌿 庭に出す';
+
+    expandArea.append(badges, hpBar, renameRow, feedRow, gardenBtn);
+
+    // 編集モード時のみ削除ボタンを追加
+    if (cageEditMode) {
+      const inGarden = user.gardenPetIds.includes(pet.id);
+      const releaseBtn = document.createElement('button');
+      releaseBtn.style.cssText = `width:100%;margin-top:6px;padding:6px 0;border-radius:var(--radius-btn);border:none;font-size:11px;font-weight:700;cursor:${inGarden ? 'not-allowed' : 'pointer'};background:${inGarden ? 'var(--color-bg)' : 'rgba(232,84,84,0.12)'};color:${inGarden ? 'var(--color-text-light)' : 'var(--color-hp)'}`;
+      releaseBtn.textContent = inGarden ? '🏡 庭から外してください' : '🌿 野に放つ';
+      releaseBtn.disabled = inGarden;
+      releaseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (inGarden) return;
+        showReleaseConfirmDialog(pet);
+      });
+      expandArea.appendChild(releaseBtn);
+    }
+
+    card.append(imgEl, name, expandArea);
+
+    // カードタップ：展開エリアのトグル
+    card.addEventListener('click', () => {
+      const isOpen = expandArea.style.display !== 'none';
+      expandArea.style.display = isOpen ? 'none' : 'block';
+    });
+
+    // 給餌ボタン
     feedBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       feedBtn.disabled = true;
@@ -320,6 +370,7 @@ async function renderCage() {
       feedBtn.disabled = false;
     });
 
+    // 水あげボタン
     waterBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       waterBtn.disabled = true;
@@ -331,40 +382,75 @@ async function renderCage() {
       waterBtn.disabled = false;
     });
 
-    // 庭への配置トグル
-    card.addEventListener('click', async () => {
+    // 庭に出す / 外すボタン
+    gardenBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       const u = await getUser();
       const idx = u.gardenPetIds.indexOf(pet.id);
       if (idx >= 0) {
         u.gardenPetIds.splice(idx, 1);
         card.classList.remove('in-garden');
+        gardenBtn.textContent = '🌿 庭に出す';
       } else {
         if (u.gardenPetIds.length >= u.gardenSlots) {
-          // 庭スロット満杯：追い出すペットを選択させる
           showEvictDialog(u, pet.id, card);
           return;
         }
         u.gardenPetIds.push(pet.id);
         card.classList.add('in-garden');
+        gardenBtn.textContent = '🏡 庭から外す';
       }
       await saveUser(u);
       await renderGarden();
     });
 
-    // 編集モード時のみ削除ボタンを表示
-    if (cageEditMode) {
-      const inGarden = user.gardenPetIds.includes(pet.id);
-      const releaseBtn = document.createElement('button');
-      releaseBtn.style.cssText = `width:100%;margin-top:6px;padding:6px 0;border-radius:var(--radius-btn);border:none;font-size:11px;font-weight:700;cursor:${inGarden ? 'not-allowed' : 'pointer'};background:${inGarden ? 'var(--color-bg)' : 'rgba(232,84,84,0.12)'};color:${inGarden ? 'var(--color-text-light)' : 'var(--color-hp)'}`;
-      releaseBtn.textContent = inGarden ? '🏡 庭から外してください' : '🌿 野に放つ';
-      releaseBtn.disabled = inGarden;
-      releaseBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (inGarden) return;
-        showReleaseConfirmDialog(pet);
+    // リネーム：✏️ボタン
+    renamePenBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const nameEl  = card.querySelector('[data-cage-name]');
+      const current = nameEl.textContent;
+      const input   = document.createElement('input');
+      input.type      = 'text';
+      input.value     = current;
+      input.maxLength = 6;
+      input.style.cssText = 'font-size:13px;font-weight:700;border:none;border-bottom:2px solid var(--color-main);outline:none;width:100%;background:transparent;color:var(--color-text)';
+      nameEl.replaceWith(input);
+      input.focus();
+      input.select();
+      const NAME_PATTERN = /^[\u3040-\u30FF\u4E00-\u9FFF\uFF00-\uFFEFa-zA-Z0-9０-９]+$/;
+      const commit = async () => {
+        const val = input.value.trim();
+        const newName = (val && NAME_PATTERN.test(val)) ? val.slice(0, 6) : current;
+        const fresh = await getPet(pet.id);
+        if (fresh) {
+          fresh.name = newName;
+          await savePet(fresh);
+          await renderGarden();
+          const restored = document.createElement('div');
+          restored.className = 'cage-card-name';
+          restored.setAttribute('data-cage-name', '1');
+          restored.textContent = newName;
+          input.replaceWith(restored);
+        }
+      };
+      input.addEventListener('blur',    commit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter')  { input.blur(); }
+        if (e.key === 'Escape') { input.value = current; input.blur(); }
       });
-      card.appendChild(releaseBtn);
-    }
+    });
+
+    // リネーム：🎲ボタン
+    renameDiceBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const fresh = await getPet(pet.id);
+      if (!fresh) return;
+      fresh.name = RANDOM_PET_NAMES[Math.floor(Math.random() * RANDOM_PET_NAMES.length)];
+      await savePet(fresh);
+      await renderGarden();
+      const nameEl = card.querySelector('[data-cage-name]');
+      if (nameEl) nameEl.textContent = fresh.name;
+    });
 
     grid.appendChild(card);
   });
@@ -400,6 +486,9 @@ function updateCageCard(card, pet, user) {
   const hpBar = card.querySelector('[data-cage-statbar]');
   if (!hpBar) return;
   hpBar.innerHTML = cageStatBarHTML(pet);
+  // 名前更新（リネームバグ修正）
+  const nameEl = card.querySelector('[data-cage-name]');
+  if (nameEl) nameEl.textContent = pet.name ?? pet.type;
   // 給餌ボタン価格も更新
   const feedBtn = card.querySelector('[data-cage-feedbtn]');
   if (feedBtn) feedBtn.textContent = `🍖 餌 🪙${10 * user.level}`;
