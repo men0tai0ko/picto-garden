@@ -373,29 +373,29 @@ function updateCageCard(card, pet, user) {
 
 /** ケージカード用ステータスバーHTML生成（width クランプ済み） */
 function cageStatBarHTML(pet) {
-  const c = (v) => Math.min(100, Math.max(0, v));
+  const c = (v, cap) => Math.min(100, Math.max(0, (v / (cap ?? 100)) * 100));
   return `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px">
       <div>
         <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">HP ${pet.hp}</div>
-        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hp" style="width:${c(pet.hp)}%"></div></div>
+        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hp" style="width:${c(pet.hp, pet.statCaps?.hp)}%"></div></div>
       </div>
       <div>
         <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">MP ${pet.mp}</div>
-        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar mp" style="width:${c(pet.mp)}%"></div></div>
+        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar mp" style="width:${c(pet.mp, pet.statCaps?.mp)}%"></div></div>
       </div>
       <div>
         <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">攻撃 ${pet.attack}</div>
-        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar atk" style="width:${c(pet.attack)}%"></div></div>
+        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar atk" style="width:${c(pet.attack, pet.statCaps?.attack)}%"></div></div>
       </div>
       <div>
         <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">防御 ${pet.defense}</div>
-        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar def" style="width:${c(pet.defense)}%"></div></div>
+        <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar def" style="width:${c(pet.defense, pet.statCaps?.defense)}%"></div></div>
       </div>
     </div>
     <div style="margin-top:4px">
       <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">空腹 ${pet.hunger}</div>
-      <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hunger" style="width:${c(pet.hunger)}%"></div></div>
+      <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hunger" style="width:${c(pet.hunger, 100)}%"></div></div>
     </div>
   `;
 }
@@ -690,10 +690,10 @@ async function showPetPanel(pet) {
     </div>
     <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${SKILLS.find(s => s.id === pet.skill)?.label ?? pet.skill ?? '—'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-      ${statBar('HP',    pet.hp,     'hp')}
-      ${statBar('MP',    pet.mp,     'mp')}
-      ${statBar('攻撃',  pet.attack, 'atk')}
-      ${statBar('防御',  pet.defense,'def')}
+      ${statBar('HP',    pet.hp,     'hp',  pet.statCaps?.hp      ?? 100)}
+      ${statBar('MP',    pet.mp,     'mp',  pet.statCaps?.mp      ?? 100)}
+      ${statBar('攻撃',  pet.attack, 'atk', pet.statCaps?.attack  ?? 100)}
+      ${statBar('防御',  pet.defense,'def', pet.statCaps?.defense ?? 100)}
     </div>
     ${statBar('空腹度', pet.hunger, 'hunger')}
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
@@ -891,11 +891,11 @@ function startHungerTimer() {
   }, HUNGER_INTERVAL_MS);
 }
 
-function statBar(label, value, cssClass) {
-  const pct = Math.min(100, Math.max(0, value));
+function statBar(label, value, cssClass, cap = 100) {
+  const pct = Math.min(100, Math.max(0, (value / cap) * 100));
   return `
     <div class="panel-stat-row">
-      <div class="panel-stat-label">${label}: ${value}/100</div>
+      <div class="panel-stat-label">${label}: ${value}/${cap}</div>
       <div class="stat-bar-wrap">
         <div class="stat-bar ${cssClass}" style="width:${pct}%"></div>
       </div>
@@ -1151,8 +1151,8 @@ const EVOLUTION_THRESHOLDS = [
  * @param {number} [rarityGrowthProb] - レア度別ボーナス確率（省略時はコモン相当）
  * @returns {number} 上昇量（0以上）
  */
-function calcStatGain(current, bonusStat, bonusMult, rarityGrowthProb = RARE_GROWTH_PROB) {
-  const ratio = current / STAT_CAP;
+function calcStatGain(current, bonusStat, bonusMult, rarityGrowthProb = RARE_GROWTH_PROB, cap = STAT_CAP) {
+  const ratio = current / cap;
   const decayEntry = STAT_DECAY.find(d => ratio >= d.threshold);
   const decayMult  = decayEntry ? decayEntry.multiplier : 0.1;
 
@@ -1199,7 +1199,7 @@ async function feedPet(pet) {
     const applyGain = (stat) => {
       if (fresh[stat] >= caps[stat]) return;
       const isBonusStat = bonus.stat === stat || bonus.stat === 'all';
-      const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult, growthProb);
+      const gain = calcStatGain(fresh[stat], isBonusStat, bonus.mult, growthProb, caps[stat]);
       fresh[stat] = Math.min(caps[stat], fresh[stat] + gain);
     };
 
@@ -1230,8 +1230,10 @@ async function feedPet(pet) {
 async function waterPet(pet) {
   const fresh = await getPet(pet.id);
   if (!fresh) return;
-  fresh.hp = Math.min(100, fresh.hp + 10);
-  fresh.mp = Math.min(100, fresh.mp + 10);
+  const hpCap = fresh.statCaps?.hp ?? 100;
+  const mpCap = fresh.statCaps?.mp ?? 100;
+  fresh.hp = Math.min(hpCap, fresh.hp + 10);
+  fresh.mp = Math.min(mpCap, fresh.mp + 10);
   await savePet(fresh);
 }
 
@@ -1420,10 +1422,10 @@ async function renderBattle() {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-        ${statBar('HP',   selectedPet.hp,      'hp')}
-        ${statBar('MP',   selectedPet.mp,      'mp')}
-        ${statBar('攻撃', selectedPet.attack,  'atk')}
-        ${statBar('防御', selectedPet.defense, 'def')}
+        ${statBar('HP',   selectedPet.hp,      'hp',  selectedPet.statCaps?.hp      ?? 100)}
+        ${statBar('MP',   selectedPet.mp,      'mp',  selectedPet.statCaps?.mp      ?? 100)}
+        ${statBar('攻撃', selectedPet.attack,  'atk', selectedPet.statCaps?.attack  ?? 100)}
+        ${statBar('防御', selectedPet.defense, 'def', selectedPet.statCaps?.defense ?? 100)}
       </div>
       ${statBar('満腹度', selectedPet.hunger, 'hunger')}
       <div style="display:flex;gap:6px;margin-top:10px">
