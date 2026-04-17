@@ -64,7 +64,25 @@ function createDefaultUser() {
     gardenSlots:        1,
     gardenPetIds:       [],        // 庭に出中のPet id
     encyclopediaFlags:  Array(10).fill(false),
+    ownedItems:         [],        // { itemId, qty }
+    placedItems:        [],        // { itemId, x, y, sizeScale }
+    gardenPetPositions: {},        // { [petId]: { x, y } }
   };
+}
+
+/**
+ * 既存Userデータにhoudingフィールドが欠けている場合に補完する
+ * 起動時に呼び出す
+ */
+export async function syncHousingData() {
+  const user = await getUser();
+  let dirty = false;
+  if (!Array.isArray(user.ownedItems))  { user.ownedItems  = []; dirty = true; }
+  if (!Array.isArray(user.placedItems)) { user.placedItems  = []; dirty = true; }
+  if (!user.gardenPetPositions || typeof user.gardenPetPositions !== 'object') {
+    user.gardenPetPositions = {}; dirty = true;
+  }
+  if (dirty) await saveUser(user);
 }
 
 /**

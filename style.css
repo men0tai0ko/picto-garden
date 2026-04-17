@@ -503,6 +503,222 @@ body {
   box-shadow: var(--shadow);
 }
 
+/* ===== 庭フッター ===== */
+#garden-footer {
+  display: none;
+  position: fixed;
+  bottom: calc(var(--nav-height) + var(--safe-bottom));
+  left: 0; right: 0;
+  height: 52px;
+  background: var(--color-white);
+  border-top: 1.5px solid #EEE;
+  z-index: 90;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+}
+body.screen-garden #garden-footer { display: flex; }
+
+/* 配置モード中はデコボタンをキャンセル色に */
+body.housing-place-mode #garden-deco-btn { color: var(--color-hp); }
+
+/* ===== アイテムトレイ ===== */
+#item-tray {
+  position: fixed;
+  bottom: 0;
+  left: 0; right: 0;
+  max-height: 52vh;
+  background: var(--color-white);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.13);
+  z-index: 200;
+  transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+  transform: translateY(100%);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+}
+#item-tray.open {
+  transform: translateY(calc(-1 * (var(--nav-height) + var(--safe-bottom))));
+  pointer-events: auto;
+}
+.item-tray-handle {
+  width: 40px; height: 5px;
+  background: #DDD;
+  border-radius: 999px;
+  margin: 10px auto 6px;
+  flex-shrink: 0;
+}
+.item-tray-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px 4px;
+  flex-shrink: 0;
+}
+.item-tray-tabs {
+  display: flex;
+  border-bottom: 1.5px solid #EEE;
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+.item-tray-tab {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-light);
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  margin-bottom: -1.5px;
+}
+.item-tray-tab.active {
+  color: var(--color-mp);
+  border-bottom-color: var(--color-mp);
+}
+.item-tray-list {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  flex: 1;
+}
+.item-tray-list::-webkit-scrollbar { display: none; }
+.item-tray-card {
+  flex-shrink: 0;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.item-tray-card.unavailable {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+.item-tray-icon {
+  width: 60px; height: 60px;
+  border-radius: 14px;
+  background: var(--color-bg);
+  border: 1.5px solid #DDD;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.item-tray-icon.selected {
+  border-color: var(--color-mp);
+  background: rgba(84,144,232,0.08);
+}
+.item-qty-badge {
+  position: absolute;
+  top: 3px; right: 3px;
+  background: var(--color-mp);
+  color: var(--color-white);
+  font-size: 9px; font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 999px;
+  line-height: 1.4;
+}
+.item-tray-name {
+  font-size: 10px;
+  color: var(--color-text-light);
+  text-align: center;
+  max-width: 68px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== 庭配置アイテム ===== */
+.garden-item {
+  position: absolute;
+  transform-origin: bottom center;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.garden-item-preview {
+  position: absolute;
+  transform-origin: bottom center;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ===== ショップ タブ ===== */
+.shop-tab-bar {
+  display: flex;
+  border-bottom: 1.5px solid #EEE;
+  padding: 0 16px;
+  background: var(--color-white);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.shop-tab {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-light);
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  margin-bottom: -1.5px;
+}
+.shop-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+.shop-item-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 12px 16px 24px;
+}
+.shop-item-card {
+  background: var(--color-white);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 10px 10px;
+  gap: 6px;
+}
+.shop-item-svg-wrap {
+  width: 64px; height: 64px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.shop-item-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: center;
+}
+.shop-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
+  margin-top: 2px;
+}
+.shop-item-price {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
 /* ===== ボトムナビ ===== */
 /* ===== ケージフッター ===== */
 #cage-footer {
