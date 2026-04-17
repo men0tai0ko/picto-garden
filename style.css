@@ -108,18 +108,17 @@ body {
 
 /* ===== 庭（ホーム） ===== */
 #screen-garden {
-  background: var(--color-sky);
   overflow: hidden;
 }
 #garden-sky {
   position: absolute;
-  inset: 0 0 67% 0;
+  inset: 0;
   background: linear-gradient(180deg, #B8DBF2 0%, var(--color-sky) 100%);
   transition: background 3s ease;
 }
 #garden-ground {
   position: absolute;
-  bottom: 0; left: 0; right: 0;
+  bottom: 0; left: -5%; right: -5%;
   height: 67%;
   background: linear-gradient(180deg, #C2E080 0%, #3A7030 100%);
   border-radius: 60% 60% 0 0 / 20px 20px 0 0;
@@ -128,16 +127,10 @@ body {
 
 /* ===== 庭 時刻帯演出 ===== */
 /* 朝（6〜11時）：薄橙の夜明け空 */
-#screen-garden.time-morning {
-  background: #C8E6F5;
-}
 #screen-garden.time-morning #garden-sky {
   background: linear-gradient(180deg, #F9C96A 0%, #C8E6F5 100%);
 }
 /* 夕（18〜21時）：橙〜紫 */
-#screen-garden.time-evening {
-  background: #7A5080;
-}
 #screen-garden.time-evening #garden-sky {
   background: linear-gradient(180deg, #E8784A 0%, #7A5080 100%);
 }
@@ -145,9 +138,6 @@ body {
   background: linear-gradient(180deg, #8AB060 0%, #2A5020 100%);
 }
 /* 夜（22〜5時）：深紺 */
-#screen-garden.time-night {
-  background: #1A2550;
-}
 #screen-garden.time-night #garden-sky {
   background: linear-gradient(180deg, #0A0E2A 0%, #1A2550 100%);
 }
