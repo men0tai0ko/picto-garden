@@ -478,7 +478,11 @@ async function renderGarden() {
     el.dataset.placedId = placed.itemId + '_' + placed.x + '_' + placed.y;
     el.innerHTML = def.svg;
     el.querySelector('svg').style.cssText = `width:${size}px;height:${size}px;display:block`;
-    el.style.cssText = `left:${placed.x}%;top:${placed.y}%;z-index:${Math.round(placed.y * 1.5 + 10)}`;
+    // 初期位置：%をpxに変換して設定（renderGarden時点のrectを使用）
+    const gRect = gardenScreen.getBoundingClientRect();
+    const initPx = placed.x / 100 * gRect.width;
+    const initPy = placed.y / 100 * gRect.height;
+    el.style.cssText = `left:${initPx}px;top:${initPy}px;z-index:${Math.round(placed.y * 1.5 + 10)}`;
 
     // ポインタダウン → 長押し削除 / ドラッグ移動 の判別
     let pressTimer  = null;
@@ -487,15 +491,14 @@ async function renderGarden() {
     let dragOffY    = 0;
 
     const onDown = (e) => {
-      // 配置モード中は自身のイベントを無視（庭への配置確定を優先）
       if (document.body.classList.contains('housing-place-mode')) return;
       e.stopPropagation();
       isDragging = false;
       const rect = gardenScreen.getBoundingClientRect();
-      dragOffX = ((e.clientX - rect.left) / rect.width  * 100) - placed.x;
-      dragOffY = ((e.clientY - rect.top)  / rect.height * 100) - placed.y;
+      // px基準でオフセット記録（アイテム現在位置px - カーソルpx）
+      dragOffX = parseFloat(el.style.left) - (e.clientX - rect.left);
+      dragOffY = parseFloat(el.style.top)  - (e.clientY - rect.top);
 
-      // 長押しタイマー（600ms → 削除）
       pressTimer = setTimeout(async () => {
         isDragging = false;
         const u = await getUser();
@@ -517,22 +520,19 @@ async function renderGarden() {
     const onMove = (e) => {
       if (document.body.classList.contains('housing-place-mode')) return;
       if (!pressTimer && !isDragging) return;
-      // 5px以上動いたらドラッグ開始・長押しタイマーキャンセル
       const rect = gardenScreen.getBoundingClientRect();
-      const curX = (e.clientX - rect.left) / rect.width  * 100;
-      const curY = (e.clientY - rect.top)  / rect.height * 100;
-      const dx = curX - (placed.x + dragOffX);
-      const dy = curY - (placed.y + dragOffY);
-      if (!isDragging && Math.abs(dx) + Math.abs(dy) > 1.5) {
+      const curPx = e.clientX - rect.left;
+      const curPy = e.clientY - rect.top;
+      const dx = curPx - (parseFloat(el.style.left) - dragOffX);
+      const dy = curPy - (parseFloat(el.style.top)  - dragOffY);
+      if (!isDragging && Math.abs(dx) + Math.abs(dy) > 5) {
         isDragging = true;
         clearTimeout(pressTimer);
         pressTimer = null;
       }
       if (isDragging) {
-        const newX = Math.max(0, Math.min(100, curX - dragOffX));
-        const newY = Math.max(0, Math.min(100, curY - dragOffY));
-        el.style.left = `${newX}%`;
-        el.style.top  = `${newY}%`;
+        el.style.left = `${Math.max(0, Math.min(rect.width,  curPx + dragOffX))}px`;
+        el.style.top  = `${Math.max(0, Math.min(rect.height, curPy + dragOffY))}px`;
       }
     };
 
@@ -543,10 +543,11 @@ async function renderGarden() {
       if (!isDragging) return;
       isDragging = false;
 
-      // ドラッグ確定：placedItemsの座標を更新
       const rect = gardenScreen.getBoundingClientRect();
-      const newX = Math.round((Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width  * 100 - dragOffX))) * 10) / 10;
-      const newY = Math.round((Math.max(0, Math.min(100, (e.clientY - rect.top)  / rect.height * 100 - dragOffY))) * 10) / 10;
+      const newPx = Math.max(0, Math.min(rect.width,  e.clientX - rect.left + dragOffX));
+      const newPy = Math.max(0, Math.min(rect.height, e.clientY - rect.top  + dragOffY));
+      const newX = Math.round((newPx / rect.width)  * 1000) / 10;
+      const newY = Math.round((newPy / rect.height) * 1000) / 10;
       const newScale = newY <= DEPTH_THRESHOLD * 100 ? DEPTH_SCALE_FAR : DEPTH_SCALE_NEAR;
 
       const u = await getUser();
@@ -1934,9 +1935,10 @@ function enterPlaceMode(item) {
   guide.textContent = `タップで配置・画面外でキャンセル`;
   guide.hidden = false;
 
-  // プレビュー初期位置を庭エリア中央に設定
-  housingPreviewEl.style.left = '50%';
-  housingPreviewEl.style.top  = '50%';
+  // プレビュー初期位置を庭エリア中央にpxで設定
+  const _gr = document.getElementById('screen-garden').getBoundingClientRect();
+  housingPreviewEl.style.left = `${_gr.width  / 2}px`;
+  housingPreviewEl.style.top  = `${_gr.height / 2}px`;
 
   const gardenScreen = document.getElementById('screen-garden');
   // mousemove・click はwindowで取る（子要素による吸収を防ぐ）
@@ -1956,13 +1958,16 @@ function _gardenPct(e, gardenEl) {
   };
 }
 
-/** プレビューをポインタ位置に追従（mousemove / pointermove 共用） */
+/** プレビューをポインタ位置に追従（window mousemove で呼ばれる） */
 function onGardenPointerMove(e) {
   if (!housingPreviewEl || !housingPlaceItemId) return;
   const gardenEl = document.getElementById('screen-garden');
-  const { x, y } = _gardenPct(e, gardenEl);
-  housingPreviewEl.style.left = `${Math.max(0, Math.min(100, x))}%`;
-  housingPreviewEl.style.top  = `${Math.max(0, Math.min(100, y))}%`;
+  const rect = gardenEl.getBoundingClientRect();
+  // px直接指定（%変換を経由しない）
+  const px = e.clientX - rect.left;
+  const py = e.clientY - rect.top;
+  housingPreviewEl.style.left = `${px}px`;
+  housingPreviewEl.style.top  = `${py}px`;
 }
 
 /** PC用：マウスクリックで配置確定（window登録） */
@@ -1991,14 +1996,20 @@ async function _confirmPlace(e) {
   const item   = ITEM_CATALOG.find(it => it.id === itemId);
   if (!item) { exitPlaceMode(); return; }
 
-  const { x: xPct, y: yPct } = _gardenPct(e, document.getElementById('screen-garden'));
+  const gardenEl = document.getElementById('screen-garden');
+  const rect = gardenEl.getBoundingClientRect();
+  const px = e.clientX - rect.left;
+  const py = e.clientY - rect.top;
 
   // 庭エリア外でキャンセル
-  if (xPct < 0 || xPct > 100 || yPct < 0 || yPct > 100) {
+  if (px < 0 || px > rect.width || py < 0 || py > rect.height) {
     exitPlaceMode();
     return;
   }
 
+  // DB保存用に%変換
+  const xPct = Math.round((px / rect.width)  * 1000) / 10;
+  const yPct = Math.round((py / rect.height) * 1000) / 10;
   const sizeScale = yPct <= DEPTH_THRESHOLD * 100 ? DEPTH_SCALE_FAR : DEPTH_SCALE_NEAR;
 
   const u = await getUser();
@@ -2010,7 +2021,7 @@ async function _confirmPlace(e) {
 
   own.qty -= 1;
   if (own.qty <= 0) u.ownedItems = u.ownedItems.filter(o => o.itemId !== itemId);
-  u.placedItems.push({ itemId, x: Math.round(xPct * 10) / 10, y: Math.round(yPct * 10) / 10, sizeScale });
+  u.placedItems.push({ itemId, x: xPct, y: yPct, sizeScale });
   await saveUser(u);
 
   const guide = document.getElementById('housing-guide-msg');
