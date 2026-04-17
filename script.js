@@ -1802,8 +1802,8 @@ function exitPlaceMode() {
   document.body.classList.remove('housing-place-mode');
   if (housingPreviewEl) { housingPreviewEl.remove(); housingPreviewEl = null; }
   const gardenScreen = document.getElementById('screen-garden');
+  document.removeEventListener('mousemove',   onGardenPointerMove);
   gardenScreen.removeEventListener('pointermove', onGardenPointerMove);
-  gardenScreen.removeEventListener('mousemove',   onGardenPointerMove);
   gardenScreen.removeEventListener('pointerup',   onGardenPointerUp);
   gardenScreen.removeEventListener('pointerdown', onGardenPointerDown);
 }
@@ -1938,8 +1938,9 @@ function enterPlaceMode(item) {
   housingPreviewEl.style.top  = '50%';
 
   const gardenScreen = document.getElementById('screen-garden');
+  // mousemoveはdocumentで取る（子要素が吸収するのを防ぐ）
+  document.addEventListener('mousemove',   onGardenPointerMove);
   gardenScreen.addEventListener('pointermove', onGardenPointerMove);
-  gardenScreen.addEventListener('mousemove',   onGardenPointerMove);
   gardenScreen.addEventListener('pointerup',   onGardenPointerUp);
   gardenScreen.addEventListener('pointerdown', onGardenPointerDown);
 }
@@ -1958,8 +1959,8 @@ function onGardenPointerMove(e) {
   if (!housingPreviewEl || !housingPlaceItemId) return;
   const gardenEl = document.getElementById('screen-garden');
   const { x, y } = _gardenPct(e, gardenEl);
-  housingPreviewEl.style.left = `${x}%`;
-  housingPreviewEl.style.top  = `${y}%`;
+  housingPreviewEl.style.left = `${Math.max(0, Math.min(100, x))}%`;
+  housingPreviewEl.style.top  = `${Math.max(0, Math.min(100, y))}%`;
 }
 
 /** pointerdown: スマホ向け配置確定（pointerTypeがtouchのみ） */
