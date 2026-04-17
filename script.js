@@ -479,26 +479,95 @@ async function renderGarden() {
     el.innerHTML = def.svg;
     el.querySelector('svg').style.cssText = `width:${size}px;height:${size}px;display:block`;
     el.style.cssText = `left:${placed.x}%;top:${placed.y}%;z-index:${Math.round(placed.y * 1.5 + 10)}`;
-    // 長押し削除（500ms）
-    let pressTimer = null;
-    el.addEventListener('pointerdown', () => {
+
+    // ポインタダウン → 長押し削除 / ドラッグ移動 の判別
+    let pressTimer  = null;
+    let isDragging  = false;
+    let dragOffX    = 0;
+    let dragOffY    = 0;
+
+    const onDown = (e) => {
+      // 配置モード中は自身のイベントを無視（庭への配置確定を優先）
+      if (document.body.classList.contains('housing-place-mode')) return;
+      e.stopPropagation();
+      isDragging = false;
+      const rect = gardenScreen.getBoundingClientRect();
+      dragOffX = ((e.clientX - rect.left) / rect.width  * 100) - placed.x;
+      dragOffY = ((e.clientY - rect.top)  / rect.height * 100) - placed.y;
+
+      // 長押しタイマー（600ms → 削除）
       pressTimer = setTimeout(async () => {
+        isDragging = false;
         const u = await getUser();
         const idx = (u.placedItems ?? []).findIndex(
           p => p.itemId === placed.itemId && p.x === placed.x && p.y === placed.y
         );
         if (idx >= 0) {
           u.placedItems.splice(idx, 1);
-          // 所持数に戻す
-          const own = u.ownedItems.find(o => o.itemId === placed.itemId);
-          if (own) own.qty += 1; else u.ownedItems.push({ itemId: placed.itemId, qty: 1 });
+          const own = u.ownedItems?.find(o => o.itemId === placed.itemId);
+          if (own) own.qty += 1; else (u.ownedItems = u.ownedItems ?? []).push({ itemId: placed.itemId, qty: 1 });
           await saveUser(u);
           await renderGarden();
         }
       }, 600);
-    });
-    el.addEventListener('pointerup',   () => clearTimeout(pressTimer));
-    el.addEventListener('pointercancel', () => clearTimeout(pressTimer));
+
+      el.setPointerCapture(e.pointerId);
+    };
+
+    const onMove = (e) => {
+      if (document.body.classList.contains('housing-place-mode')) return;
+      if (!pressTimer && !isDragging) return;
+      // 5px以上動いたらドラッグ開始・長押しタイマーキャンセル
+      const rect = gardenScreen.getBoundingClientRect();
+      const curX = (e.clientX - rect.left) / rect.width  * 100;
+      const curY = (e.clientY - rect.top)  / rect.height * 100;
+      const dx = curX - (placed.x + dragOffX);
+      const dy = curY - (placed.y + dragOffY);
+      if (!isDragging && Math.abs(dx) + Math.abs(dy) > 1.5) {
+        isDragging = true;
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+      if (isDragging) {
+        const newX = Math.max(0, Math.min(100, curX - dragOffX));
+        const newY = Math.max(0, Math.min(100, curY - dragOffY));
+        el.style.left = `${newX}%`;
+        el.style.top  = `${newY}%`;
+      }
+    };
+
+    const onUp = async (e) => {
+      if (document.body.classList.contains('housing-place-mode')) return;
+      clearTimeout(pressTimer);
+      pressTimer = null;
+      if (!isDragging) return;
+      isDragging = false;
+
+      // ドラッグ確定：placedItemsの座標を更新
+      const rect = gardenScreen.getBoundingClientRect();
+      const newX = Math.round((Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width  * 100 - dragOffX))) * 10) / 10;
+      const newY = Math.round((Math.max(0, Math.min(100, (e.clientY - rect.top)  / rect.height * 100 - dragOffY))) * 10) / 10;
+      const newScale = newY <= DEPTH_THRESHOLD * 100 ? DEPTH_SCALE_FAR : DEPTH_SCALE_NEAR;
+
+      const u = await getUser();
+      const target = (u.placedItems ?? []).find(
+        p => p.itemId === placed.itemId && p.x === placed.x && p.y === placed.y
+      );
+      if (target) {
+        target.x = newX;
+        target.y = newY;
+        target.sizeScale = newScale;
+        await saveUser(u);
+      }
+      await renderGarden();
+    };
+
+    const onCancel = () => { clearTimeout(pressTimer); pressTimer = null; isDragging = false; };
+
+    el.addEventListener('pointerdown',   onDown);
+    el.addEventListener('pointermove',   onMove);
+    el.addEventListener('pointerup',     onUp);
+    el.addEventListener('pointercancel', onCancel);
     gardenScreen.appendChild(el);
   });
 
