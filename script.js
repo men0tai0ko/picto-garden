@@ -2201,7 +2201,7 @@ async function _renderBreedArea() {
 
   area.innerHTML = `
     <p style="font-size:12px;color:var(--color-text-light);padding:0 16px;margin-bottom:10px">
-      2体選択・空腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
+      2体選択・空腹度${BREED_HUNGER_MIN}以上・進化${BREED_EVOLUTION_MIN}段階以上が必要 / 🪙${cost}
     </p>
     <div id="breed-pet-list" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 16px"></div>
   `;
