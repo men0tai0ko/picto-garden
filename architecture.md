@@ -26,17 +26,25 @@
 
 ```
 {
-  id: string/number,
-  type: enum('ドラゴン系','鳥類系','野獣系','スライム系','精霊系'),
+  id: string,
+  name: string,              // 表示名（最大6文字・リネーム可）
+  typeIndex: number,         // encyclopediaFlags配列の添字（0〜9）
+  type: string,              // PET_TYPES[typeIndex].label（10種）
   level: number,
-  hp: number,        // 上限100
-  mp: number,        // 上限100
-  attack: number,    // 上限100
-  defense: number,   // 上限100
+  hp: number,
+  mp: number,
+  attack: number,
+  defense: number,
   hunger: number,
-  personality: enum('勇猛','活発','強靭','堅固','神秘'),
-  rarity: string,
-  imageData: Blob    // 元画像
+  personalityIndex: number,  // PERSONALITIES配列の添字（0〜4）
+  personality: string,       // PERSONALITIES[personalityIndex].label
+  skill: string,             // SKILLS[personalityIndex].id（性格と1対1）
+  attribute: string,         // 火/水/草/闇/光
+  rarity: string,            // 伝説/英雄/希少/高級/一般
+  imageData: Blob,           // 元画像（IndexedDB保存）
+  evolutionStage: number,    // 0/1/2
+  statCaps: { hp, mp, attack, defense }, // calcStatCaps()による可変上限
+  generation: number         // 繁殖世代（直接生成=0、繁殖子=親の最大世代+1）
 }
 ```
 
@@ -49,7 +57,7 @@
   currency: number,           // 初期100
   pets: Pet[],
   gardenSlots: number,        // 初期1・最大5
-  encyclopediaFlags: boolean[5] // 図鑑解放フラグ（種類順）
+  encyclopediaFlags: boolean[10] // 図鑑解放フラグ（typeIndexと対応）
 }
 ```
 
@@ -97,7 +105,7 @@
   ├── 訓練画面
   │     └── 難易度選択（3段階）→ オートバトル → EXP・通貨獲得・HP減少
   └── 図鑑
-        └── 5種類の解放状況表示（未解放はシルエット）
+        └── 10種類の解放状況表示（未解放はシルエット）
 ```
 
 ---
@@ -108,7 +116,7 @@
 [画像入力]
   → Canvas APIでピクセルデータ取得（getImageData）
   → 色解析関数    → 平均RGB → 属性（火/水/草/闇/光）
-  → 輪郭解析関数  → エッジ検出 → 種類（5種）
+  → 輪郭解析関数  → エッジ検出 → 種類（10種）
   → 明るさ解析関数 → 輝度平均 → 性格（5種）
   → ノイズ解析関数 → 分散 → レア度
   → Petオブジェクト生成 → IndexedDB保存
@@ -124,7 +132,9 @@
 [難易度選択]
   → 空腹度0 or HP0 チェック（訓練不可ガード）
   → 難易度計算（ユーザーLv×10 + 総合力×0.5）× 難易度係数
-  → 勝率計算（総合力 ÷ 難易度、0.1〜0.9クランプ）
+  → 属性相性乗数取得（AFFINITY_TABLE: 自属性 × 敵属性 → 1.2/1.0/0.8）
+  → スキル発動判定（MP>0 かつ30%確率 → winRateBonus加算・MP-20）
+  → 勝率計算（（総合力 ÷ 難易度）× 属性相性 + スキルボーナス、0.1〜0.9クランプ）
   → 勝敗判定
   → 勝利：EXP・通貨付与（上限200）・HP減少
   → 敗北：HP減少のみ

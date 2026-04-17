@@ -1419,7 +1419,7 @@ async function renderBattle() {
         <canvas id="battle-pet-canvas" width="56" height="56" style="border-radius:10px;flex-shrink:0"></canvas>
         <div>
           <div style="font-weight:700;font-size:15px">${selectedPet.name ?? selectedPet.type}</div>
-          <div style="font-size:11px;color:var(--color-text-light)">${selectedPet.type} / ${selectedPet.personality} / ${selectedPet.attribute}</div>
+          <div style="font-size:11px;color:var(--color-text-light)">${selectedPet.type} / ${selectedPet.personality} / ${selectedPet.attribute} / ${selectedPet.rarity}</div>
           <div style="font-size:11px;color:var(--color-mp);margin-top:2px">✨ スキル: ${SKILLS.find(s => s.id === selectedPet.skill)?.label ?? selectedPet.skill ?? '—'}</div>
         </div>
       </div>
