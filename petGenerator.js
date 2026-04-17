@@ -29,11 +29,16 @@ function generateName() {
 
 /** ペット種類（typeIndex と encyclopediaFlags の順序に対応） */
 export const PET_TYPES = [
-  { id: 'dragon', label: 'ドラゴン系', animClass: 'pet-anim-dragon' },
-  { id: 'bird',   label: '鳥類系',     animClass: 'pet-anim-bird'   },
-  { id: 'beast',  label: '野獣系',     animClass: 'pet-anim-beast'  },
-  { id: 'slime',  label: 'スライム系', animClass: 'pet-anim-slime'  },
-  { id: 'spirit', label: '精霊系',     animClass: 'pet-anim-spirit' },
+  { id: 'dragon',  label: 'ドラゴン系', animClass: 'pet-anim-dragon'  }, // 0
+  { id: 'bird',    label: '鳥類系',     animClass: 'pet-anim-bird'    }, // 1
+  { id: 'beast',   label: '野獣系',     animClass: 'pet-anim-beast'   }, // 2
+  { id: 'slime',   label: 'スライム系', animClass: 'pet-anim-slime'   }, // 3
+  { id: 'spirit',  label: '精霊系',     animClass: 'pet-anim-spirit'  }, // 4
+  { id: 'aqua',    label: '水棲系',     animClass: 'pet-anim-aqua'    }, // 5
+  { id: 'insect',  label: '昆虫系',     animClass: 'pet-anim-insect'  }, // 6
+  { id: 'plant',   label: '植物系',     animClass: 'pet-anim-plant'   }, // 7
+  { id: 'golem',   label: '岩石系',     animClass: 'pet-anim-golem'   }, // 8
+  { id: 'phantom', label: '幻影系',     animClass: 'pet-anim-phantom' }, // 9
 ];
 
 /** 性格（輝度範囲・成長補正） */
@@ -73,7 +78,7 @@ const RARITY_THRESHOLDS = [
   { min:    0, label: '一般' },
 ];
 
-/** 輪郭解析：エッジ密度閾値（輪郭 → 種類） */
+/** 輪郭解析：エッジ密度閾値（輪郭 → 種類）既存5種用・変更禁止 */
 const EDGE_DENSITY_THRESHOLDS = {
   aspect_tall:   0.8,   // 縦横比（高さ/幅）：縦長判定
   aspect_wide:   1.3,   // 横長判定
@@ -81,6 +86,15 @@ const EDGE_DENSITY_THRESHOLDS = {
   center_y_low:  0.58,  // 重心Y：下寄り
   edge_high:     0.18,  // エッジ密度高
   edge_low:      0.06,  // エッジ密度低
+};
+
+/** 新5種専用独立閾値定数（既存定数と分離・既存分岐に影響しない） */
+const NEW_TYPE_THRESHOLDS = {
+  edge_very_low:  0.03,  // 幻影系：精霊系より更に低いエッジ
+  edge_very_high: 0.28,  // 岩石系：野獣系より更に高いエッジ
+  edge_mid:       0.12,  // 水棲系：edge_low〜edge_highの中間帯
+  aspect_mid_low: 0.85,  // 水棲系・植物系：中央帯の下限
+  aspect_mid_high: 1.25, // 水棲系：中央帯の上限（aspect_wideより低い）
 };
 
 // ===== メイン生成関数 =====
@@ -135,14 +149,43 @@ export function analyzeColor(pixels) {
 /**
  * [輪郭解析] エッジ検出（Sobel簡易版）→ 種類決定
  * spec.md 1.2 の輪郭特徴に対応
+ * 判定順：新種（独立定数）→ 既存種（既存定数）の順で評価
+ * 既存5種(0〜4)の判定条件は変更しない
  */
 export function analyzeContour(pixels, width, height) {
-  const gray      = toGrayscale(pixels, width, height);
+  const gray        = toGrayscale(pixels, width, height);
   const edgeDensity = sobelEdgeDensity(gray, width, height);
-  const { cx, cy } = centerOfMass(gray, width, height);
+  const { cx, cy }  = centerOfMass(gray, width, height);
   const aspectRatio = height / width; // 高さ/幅
 
-  const T = EDGE_DENSITY_THRESHOLDS;
+  const T  = EDGE_DENSITY_THRESHOLDS;
+  const NT = NEW_TYPE_THRESHOLDS;
+
+  // ===== 新5種判定（独立定数使用・既存分岐より上位で評価） =====
+
+  // 幻影系：エッジ極小（精霊系より更に低い）
+  if (edgeDensity < NT.edge_very_low) {
+    return { typeIndex: 9, edgeDensity, aspectRatio };
+  }
+
+  // 岩石系：エッジ極大（野獣系より更に高い）
+  if (edgeDensity >= NT.edge_very_high) {
+    return { typeIndex: 8, edgeDensity, aspectRatio };
+  }
+
+  // 昆虫系：エッジ高・重心上寄り（野獣系の細分化）
+  if (edgeDensity >= T.edge_high && cy < T.center_y_high) {
+    return { typeIndex: 6, edgeDensity, aspectRatio };
+  }
+
+  // 水棲系：エッジ中帯・アスペクト中央帯
+  if (edgeDensity >= NT.edge_mid && edgeDensity < T.edge_high &&
+      aspectRatio >= NT.aspect_mid_low && aspectRatio <= NT.aspect_mid_high) {
+    return { typeIndex: 5, edgeDensity, aspectRatio };
+  }
+
+  // ===== 既存5種判定（条件変更なし） =====
+
   let typeIndex = 4; // デフォルト: 精霊系
 
   if (edgeDensity < T.edge_low) {
@@ -150,11 +193,13 @@ export function analyzeContour(pixels, width, height) {
   } else if (edgeDensity < T.edge_high && aspectRatio > T.aspect_wide && cy < T.center_y_high) {
     typeIndex = 1; // 鳥類系（横長・重心上・エッジ中）
   } else if (edgeDensity >= T.edge_high) {
-    typeIndex = 2; // 野獣系（エッジ高）
+    typeIndex = 2; // 野獣系（エッジ高・昆虫系に該当しない残余）
   } else if (aspectRatio < T.aspect_tall && cy > T.center_y_low) {
     typeIndex = 3; // スライム系（正方形・重心下・エッジ低）
   } else if (aspectRatio >= T.aspect_tall && aspectRatio <= T.aspect_wide) {
     typeIndex = 0; // ドラゴン系（縦長・エッジ中）
+  } else {
+    typeIndex = 7; // 植物系（上記いずれにも該当しない残余）
   }
 
   return { typeIndex, edgeDensity, aspectRatio };

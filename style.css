@@ -166,6 +166,11 @@ body {
 .pet-anim-beast   { animation: vibrate 0.18s linear infinite; }
 .pet-anim-slime   { animation: squish 1.8s ease-in-out infinite; }
 .pet-anim-spirit  { animation: fade-inout 2.6s ease-in-out infinite; }
+.pet-anim-aqua    { animation: sway-slow 4.0s ease-in-out infinite; }
+.pet-anim-insect  { animation: vibrate-lr 0.12s linear infinite; }
+.pet-anim-plant   { animation: float-updown 5.0s ease-in-out infinite; }
+.pet-anim-golem   { animation: micro-shake 3.0s ease-in-out infinite; }
+.pet-anim-phantom { animation: fade-drift 3.5s ease-in-out infinite; }
 
 @keyframes float-updown {
   0%,100% { transform: translateY(0); }
@@ -188,6 +193,26 @@ body {
 @keyframes fade-inout {
   0%,100% { opacity: 1; }
   50%      { opacity: 0.35; }
+}
+/* 新5種keyframes */
+@keyframes sway-slow {
+  0%,100% { transform: rotate(-3deg) translateX(0); }
+  50%      { transform: rotate(3deg) translateX(4px); }
+}
+@keyframes vibrate-lr {
+  0%,100% { transform: translateX(0); }
+  25%      { transform: translateX(2px); }
+  75%      { transform: translateX(-2px); }
+}
+@keyframes micro-shake {
+  0%,90%,100% { transform: translate(0,0); }
+  92%          { transform: translate(1px,0); }
+  94%          { transform: translate(-1px,0); }
+  96%          { transform: translate(1px,0); }
+}
+@keyframes fade-drift {
+  0%,100% { opacity: 1;    transform: translateX(0); }
+  50%      { opacity: 0.2;  transform: translateX(6px); }
 }
 
 /* ===== ケージ ===== */

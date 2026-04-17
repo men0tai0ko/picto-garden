@@ -7,7 +7,7 @@
  * T5：報酬ループ（EXP・レベルアップ・レベルアップ演出）
  */
 
-import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet } from './state.js';
+import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet, syncEncyclopediaFlags } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
@@ -44,6 +44,7 @@ function wrapWithGenerationBadge(iconEl, generation) {
     await initDB();
     await syncRarity();
     await syncGardenSlots();
+    await syncEncyclopediaFlags();
     await renderStatusBar();
     await renderEncyclopedia();
     await renderCage();

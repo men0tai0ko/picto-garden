@@ -63,8 +63,22 @@ function createDefaultUser() {
     pets:               [],        // Pet id の配列
     gardenSlots:        1,
     gardenPetIds:       [],        // 庭に出中のPet id
-    encyclopediaFlags:  [false, false, false, false, false],
+    encyclopediaFlags:  Array(10).fill(false),
   };
+}
+
+/**
+ * encyclopediaFlagsが10要素未満の場合にfalseで補完する
+ * 種類追加時の既存ユーザーデータ移行用・起動時に呼び出す
+ */
+export async function syncEncyclopediaFlags() {
+  const user = await getUser();
+  if (user.encyclopediaFlags.length < 10) {
+    while (user.encyclopediaFlags.length < 10) {
+      user.encyclopediaFlags.push(false);
+    }
+    await saveUser(user);
+  }
 }
 
 // ===== Pet =====
