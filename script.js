@@ -698,7 +698,8 @@ async function showPetPanel(pet) {
   const user  = await getUser();
   const price = 10 * user.level;
 
-  const inGarden = user.gardenPetIds.includes(pet.id);
+  const inGarden   = user.gardenPetIds.includes(pet.id);
+  const gardenFull = !inGarden && user.gardenPetIds.length >= user.gardenSlots;
   content.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <canvas id="panel-pet-canvas" width="48" height="48" style="border-radius:10px;flex-shrink:0"></canvas>
@@ -728,8 +729,9 @@ async function showPetPanel(pet) {
       <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px">🍖 餌 🪙${price}</button>
       <button class="btn-primary" id="panel-water-btn" style="padding:10px 20px;font-size:14px;background:var(--color-mp)">💧 おみず</button>
     </div>
-    <button id="panel-garden-btn" class="btn-primary" style="width:100%;margin-top:10px;font-size:14px;background:${inGarden ? 'var(--color-ground)' : 'var(--color-main)'}">
-      ${inGarden ? '🏡 庭から外す' : '🌿 庭に出す'}
+    <button id="panel-garden-btn" class="btn-primary" style="width:100%;margin-top:10px;font-size:14px;background:${inGarden ? 'var(--color-ground)' : gardenFull ? '#aaa' : 'var(--color-main)'}"
+      ${gardenFull ? 'disabled' : ''}>
+      ${inGarden ? '🏡 庭から外す' : gardenFull ? '🌿 庭がいっぱい' : '🌿 庭に出す'}
     </button>
   `;
 
@@ -2290,7 +2292,14 @@ async function _renderBreedArea() {
     card.style.cursor = 'pointer';
     card.addEventListener('click', () => showPetPanel(pet));
 
-    card.append(wrapWithGenerationBadge(canvas, pet.generation ?? 0), name, sub, check);
+    if (!canSelect) {
+      const hungerLabel = document.createElement('div');
+      hungerLabel.style.cssText = 'font-size:10px;color:var(--color-hp);font-weight:700;text-align:center;background:rgba(232,84,84,0.12);border-radius:4px;padding:2px 4px;margin-top:2px';
+      hungerLabel.textContent = '満腹度不足';
+      card.append(wrapWithGenerationBadge(canvas, pet.generation ?? 0), name, sub, hungerLabel, check);
+    } else {
+      card.append(wrapWithGenerationBadge(canvas, pet.generation ?? 0), name, sub, check);
+    }
     list.appendChild(card);
   });
 
@@ -2319,10 +2328,24 @@ async function _execBreed() {
   const cost = BREED_COST_MULTIPLIER * user.level;
   const { ok } = await spendCurrency(cost);
   if (!ok) {
-    alert(`通貨が足りません（必要: 🪙${cost}）`);
+    const area = document.getElementById('breed-area');
+    if (area) {
+      let errMsg = document.getElementById('breed-cost-error');
+      if (!errMsg) {
+        errMsg = document.createElement('p');
+        errMsg.id = 'breed-cost-error';
+        errMsg.style.cssText = 'color:var(--color-hp);font-size:12px;text-align:center;background:rgba(232,84,84,0.1);border-radius:8px;padding:8px 12px;margin:0 16px';
+        area.insertBefore(errMsg, area.firstChild);
+      }
+      errMsg.textContent = `🪙 通貨が足りません（必要: ${cost} / 所持: ${user.currency}）`;
+      errMsg.hidden = false;
+    }
     if (btn) btn.disabled = false;
     return;
   }
+  // エラーメッセージがあれば隠す
+  const existErr = document.getElementById('breed-cost-error');
+  if (existErr) existErr.hidden = true;
 
   const [pA, pB] = await Promise.all([getPet(breedSelectedIds[0]), getPet(breedSelectedIds[1])]);
   if (!pA || !pB) { if (btn) btn.disabled = false; return; }
