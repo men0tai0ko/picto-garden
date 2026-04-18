@@ -42,6 +42,20 @@
 - 切替方式：`transition: background 3s ease` による滑らか遷移
 - 夜の星：`#garden-sky::after` の `box-shadow` 疑似要素で静的配置
 
+### 時刻帯別天体表現（庭のみ）
+
+| 時刻帯 | 天体 | サイズ | 位置 | 色 |
+|--------|------|--------|------|----|
+| 朝 | 太陽（`#garden-sun`） | 40×40px | top:15% left:20% | #FFD86B + グロー |
+| 昼 | 太陽（`#garden-sun`） | 48×48px | top:8% left:center | #FFEE88 + グロー |
+| 夕 | 太陽（`#garden-sun`）沈みかけ | 38×38px | top:55% left:72% | #FF8844 + グロー |
+| 夜 | 月（`#garden-moon`） | 36×36px | top:12% right:18% | #E8E8C8 + グロー |
+
+- 要素：`#garden-sky` の子要素として `#garden-sun` / `#garden-moon` を静的配置
+- 切替方式：`opacity / top / left / right` に `transition: 3s ease` で滑らか遷移
+- 夕方の太陽は `top:55%` で地面（`#garden-ground`）の背後に沈む演出（z-index制御なし・スタック順で自然に隠れる）
+- `script.js` 変更なし（既存の `applyGardenTime()` による `time-*` クラス付与のみで制御）
+
 ---
 
 ## 3. ナビゲーション

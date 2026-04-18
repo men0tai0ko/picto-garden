@@ -170,6 +170,49 @@ body {
     240px 42px 0 1px rgba(255,255,255,0.75),
     320px 38px 0 0px rgba(255,255,255,0.68);
 }
+/* ===== 庭 天体（太陽・月） ===== */
+/* 共通：絶対配置・円形・タップ無効・遷移 */
+#garden-sun,
+#garden-moon {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 3s ease, top 3s ease, left 3s ease, right 3s ease;
+}
+/* 太陽：朝（左寄り低め・黄色） */
+#screen-garden.time-morning #garden-sun {
+  opacity: 1;
+  width: 40px; height: 40px;
+  top: 15%; left: 20%;
+  background: #FFD86B;
+  box-shadow: 0 0 18px 8px rgba(255,216,107,0.55);
+}
+/* 太陽：昼（中央高め・明るい黄） */
+#screen-garden.time-noon #garden-sun {
+  opacity: 1;
+  width: 48px; height: 48px;
+  top: 8%; left: calc(50% - 24px);
+  background: #FFEE88;
+  box-shadow: 0 0 24px 10px rgba(255,238,136,0.60);
+}
+/* 太陽：夕（右寄り・地平線付近・橙） */
+#screen-garden.time-evening #garden-sun {
+  opacity: 0.85;
+  width: 38px; height: 38px;
+  top: 55%; left: 72%;
+  background: #FF8844;
+  box-shadow: 0 0 20px 10px rgba(255,136,68,0.50);
+}
+/* 月：夜（右上・クリーム色） */
+#screen-garden.time-night #garden-moon {
+  opacity: 1;
+  width: 36px; height: 36px;
+  top: 12%; right: 18%;
+  background: #E8E8C8;
+  box-shadow: 0 0 16px 6px rgba(232,232,200,0.40);
+}
+
 #garden-pets {
   position: absolute;
   bottom: 28%;
