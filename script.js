@@ -12,6 +12,27 @@ import { generatePetFromImage, PET_TYPES, PERSONALITIES, SKILLS, breedPet, BREED
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
 
+// ===== 庭 時刻帯演出 =====
+/** 庭の時刻帯クラス更新インターバル管理 */
+let gardenTimeInterval = null;
+
+/** 現在時刻から時刻帯クラス名を返す（morning/noon/evening/night） */
+function getCurrentTimeSlot() {
+  const h = new Date().getHours();
+  if (h >= 6  && h < 12) return 'time-morning';
+  if (h >= 12 && h < 18) return 'time-noon';
+  if (h >= 18 && h < 22) return 'time-evening';
+  return 'time-night';
+}
+
+/** #screen-garden の time-* クラスを現在時刻帯に合わせて付け替える */
+function applyGardenTime() {
+  const garden = document.getElementById('screen-garden');
+  if (!garden) return;
+  garden.classList.remove('time-morning', 'time-noon', 'time-evening', 'time-night');
+  garden.classList.add(getCurrentTimeSlot());
+}
+
 /** 進化段階 → CSSクラス名変換（呼び出し元でのクラス付与に使用） */
 function getEvolutionClass(stage) {
   if (stage >= 2) return 'evo-stage-2';
@@ -95,6 +116,13 @@ function switchScreen(name) {
   panelOpenPetId = null;
   // 生成画面：庭スロット満杯警告
   if (name === 'generate') renderGenerateWarning();
+  // 庭の時刻帯演出：庭進入時に開始、離脱時に停止
+  clearInterval(gardenTimeInterval);
+  gardenTimeInterval = null;
+  if (name === 'garden') {
+    applyGardenTime();
+    gardenTimeInterval = setInterval(applyGardenTime, 60_000);
+  }
 }
 
 /** 生成画面の上部に庭スロット満杯警告を表示 */
