@@ -1645,6 +1645,8 @@ async function executeBattle() {
     appendLogDOM(modalLog, sep, 'var(--color-text-light)');
 
     const diff = DIFFICULTY_LEVELS.find(d => d.id === battleState.difficultyId) ?? DIFFICULTY_LEVELS[1];
+    const enemyHpInitPct = Math.min(100, Math.round(diff.coeff * 66.7));
+    const enemyMpInitPct = Math.min(100, Math.round(diff.coeff * 55.0));
     updateBattleLogModalEnemy(enemyName, battleState.enemyAttribute, enemyTypeName, diff.coeff);
 
     const result = await runBattle(battleState.petId, battleState.difficultyId, battleState.enemyAttribute);
@@ -1680,6 +1682,10 @@ async function executeBattle() {
       appendLog(log, `💀 敗北... HP-${result.hpLoss}`, 'var(--color-hp)');
       appendLogDOM(modalLog, `💀 敗北... HP-${result.hpLoss}`, 'var(--color-hp)');
     }
+
+    // バー減少演出
+    const petForAnim = await getPet(battleState.petId);
+    if (petForAnim) animateBattleBars(result, petForAnim, enemyHpInitPct, enemyMpInitPct);
 
     // session集計
     battleState.session.battles++;
@@ -1746,13 +1752,13 @@ function showBattleLogModal() {
             <div>
               <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">HP</div>
               <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
-                <div id="blm-pet-hp-bar" style="height:100%;border-radius:3px;background:var(--color-hp)"></div>
+                <div id="blm-pet-hp-bar" style="height:100%;border-radius:3px;background:var(--color-hp);transition:width 0.5s ease"></div>
               </div>
             </div>
             <div>
               <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">MP</div>
               <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
-                <div id="blm-pet-mp-bar" style="height:100%;border-radius:3px;background:var(--color-mp)"></div>
+                <div id="blm-pet-mp-bar" style="height:100%;border-radius:3px;background:var(--color-mp);transition:width 0.5s ease"></div>
               </div>
             </div>
           </div>
@@ -1768,13 +1774,13 @@ function showBattleLogModal() {
             <div>
               <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">HP</div>
               <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
-                <div id="blm-enemy-hp-bar" style="height:100%;border-radius:3px;background:var(--color-hp)"></div>
+                <div id="blm-enemy-hp-bar" style="height:100%;border-radius:3px;background:var(--color-hp);transition:width 0.5s ease"></div>
               </div>
             </div>
             <div>
               <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">MP</div>
               <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
-                <div id="blm-enemy-mp-bar" style="height:100%;border-radius:3px;background:var(--color-mp)"></div>
+                <div id="blm-enemy-mp-bar" style="height:100%;border-radius:3px;background:var(--color-mp);transition:width 0.5s ease"></div>
               </div>
             </div>
           </div>
@@ -1834,8 +1840,32 @@ function updateBattleLogModalEnemy(enemyName, enemyAttribute, typeName, diffCoef
   if (mpBar) mpBar.style.width = `${mpPct}%`;
 }
 
-/** バトルログモーダルを閉じる */
-function closeBattleLogModal() {
+/**
+ * バトル結果後にペット・敵のHP/MPバーを減少演出（演出専用）
+ * @param {object} result - runBattle戻り値
+ * @param {object} pet - 最新ペットデータ
+ * @param {number} enemyHpInitPct - 敵HP初期割合（updateBattleLogModalEnemyで設定した値）
+ * @param {number} enemyMpInitPct - 敵MP初期割合
+ */
+function animateBattleBars(result, pet, enemyHpInitPct, enemyMpInitPct) {
+  // ペット実値バー更新
+  const petHpCap = pet.statCaps?.hp ?? 100;
+  const petMpCap = pet.statCaps?.mp ?? 100;
+  const petHpPct = Math.min(100, Math.max(0, (result.petHpAfter / petHpCap) * 100));
+  const petMpPct = Math.min(100, Math.max(0, (pet.mp / petMpCap) * 100));
+  const petHpBar = document.getElementById('blm-pet-hp-bar');
+  const petMpBar = document.getElementById('blm-pet-mp-bar');
+  if (petHpBar) petHpBar.style.width = `${petHpPct}%`;
+  if (petMpBar) petMpBar.style.width = `${petMpPct}%`;
+
+  // 敵疑似バー：勝利→0%、敗北→初期値の35%残存
+  const enemyHpAfter = result.won ? 0 : Math.round(enemyHpInitPct * 0.35);
+  const enemyMpAfter = result.won ? 0 : Math.round(enemyMpInitPct * 0.35);
+  const enemyHpBar = document.getElementById('blm-enemy-hp-bar');
+  const enemyMpBar = document.getElementById('blm-enemy-mp-bar');
+  if (enemyHpBar) enemyHpBar.style.width = `${enemyHpAfter}%`;
+  if (enemyMpBar) enemyMpBar.style.width = `${enemyMpAfter}%`;
+}
   const overlay = document.getElementById('overlay-battle-log');
   if (overlay) overlay.classList.add('hidden');
 }
@@ -1874,9 +1904,7 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
     document.body.appendChild(overlay);
   }
 
-  const stopLabel = stopReason === 'hp0'     ? '⚠️ HPが0になりました'
-                  : stopReason === 'hunger0' ? '⚠️ 満腹度が0になりました'
-                  : '🛑 中断しました';
+  const stopLabel = stopReason === 'aborted' ? '🛑 中断しました' : null;
 
   // 戦歴リスト行HTML
   const battlesListHTML = (session.battlesList ?? []).map(b => `
@@ -1898,7 +1926,7 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
       </div>
       <div style="padding:6px 16px 4px;flex-shrink:0;max-height:130px;overflow-y:auto">
         ${battlesListHTML}
-        <div style="padding:6px 0;font-size:11px;color:var(--color-text-light);text-align:center">${stopLabel}</div>
+        ${stopLabel ? `<div style="padding:6px 0;font-size:11px;color:var(--color-text-light);text-align:center">${stopLabel}</div>` : ''}
       </div>
       <div id="bro-log" style="margin:0 16px;background:rgba(154,136,112,0.08);border-radius:10px;padding:10px 12px;flex:1;overflow-y:auto;font-size:12px;line-height:1.9;min-height:0"></div>
       <div style="padding:10px 16px 14px;flex-shrink:0">
