@@ -1541,12 +1541,16 @@ async function renderBattle() {
     const updated = await getPet(battleState.petId);
     const screen = document.getElementById('screen-battle');
     const screenScroll = screen ? screen.scrollTop : 0;
+    const scrollEl = document.getElementById('pet-select-scroll');
+    const prevScroll = scrollEl ? scrollEl.scrollLeft : 0;
     await renderBattle();
     await renderStatusBar();
     await renderCage();
     await renderGarden();
     const screenAfter = document.getElementById('screen-battle');
     if (screenAfter) screenAfter.scrollTop = screenScroll;
+    const scrollElAfter = document.getElementById('pet-select-scroll');
+    if (scrollElAfter) scrollElAfter.scrollLeft = prevScroll;
     if (result.evolved && updated) showEvolutionOverlay(updated, result.evolutionStage);
   });
 
@@ -1559,12 +1563,16 @@ async function renderBattle() {
     await waterPet(fresh);
     const screen = document.getElementById('screen-battle');
     const screenScroll = screen ? screen.scrollTop : 0;
+    const scrollEl = document.getElementById('pet-select-scroll');
+    const prevScroll = scrollEl ? scrollEl.scrollLeft : 0;
     await renderBattle();
     await renderStatusBar();
     await renderCage();
     await renderGarden();
     const screenAfter = document.getElementById('screen-battle');
     if (screenAfter) screenAfter.scrollTop = screenScroll;
+    const scrollElAfter = document.getElementById('pet-select-scroll');
+    if (scrollElAfter) scrollElAfter.scrollLeft = prevScroll;
   });
 
   // ペット選択クリック
@@ -1581,9 +1589,13 @@ async function renderBattle() {
 
   // 難易度選択クリック
   area.querySelectorAll('[data-diff]').forEach(el => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', async () => {
+      const scrollEl = document.getElementById('pet-select-scroll');
+      const prevScroll = scrollEl ? scrollEl.scrollLeft : 0;
       battleState.difficultyId = el.dataset.diff;
-      renderBattle();
+      await renderBattle();
+      const scrollElAfter = document.getElementById('pet-select-scroll');
+      if (scrollElAfter) scrollElAfter.scrollLeft = prevScroll;
     });
   });
 
