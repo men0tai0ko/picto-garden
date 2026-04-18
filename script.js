@@ -1569,11 +1569,11 @@ async function renderBattle() {
 
   // ペット選択クリック
   area.querySelectorAll('[data-pet-id]').forEach(el => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', async () => {
       const scrollEl = document.getElementById('pet-select-scroll');
       const prevScroll = scrollEl ? scrollEl.scrollLeft : 0;
       battleState.petId = el.dataset.petId;
-      renderBattle();
+      await renderBattle();
       const scrollElAfter = document.getElementById('pet-select-scroll');
       if (scrollElAfter) scrollElAfter.scrollLeft = prevScroll;
     });
