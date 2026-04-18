@@ -1866,6 +1866,9 @@ function animateBattleBars(result, pet, enemyHpInitPct, enemyMpInitPct) {
   if (enemyHpBar) enemyHpBar.style.width = `${enemyHpAfter}%`;
   if (enemyMpBar) enemyMpBar.style.width = `${enemyMpAfter}%`;
 }
+
+/** バトルログモーダルを閉じる */
+function closeBattleLogModal() {
   const overlay = document.getElementById('overlay-battle-log');
   if (overlay) overlay.classList.add('hidden');
 }
