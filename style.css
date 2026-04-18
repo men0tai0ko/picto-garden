@@ -917,7 +917,7 @@ body.screen-generate #generate-footer-cancel { display: flex; }
 
 /* ===== PC / タブレット / 横画面：幅制限 ===== */
 @media (min-width: 481px) {
-  body {
+  html {
     background: #2A2010;
   }
   #status-bar,
