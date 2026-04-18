@@ -1645,7 +1645,6 @@ async function executeBattle() {
     appendLogDOM(modalLog, sep, 'var(--color-text-light)');
 
     const diff = DIFFICULTY_LEVELS.find(d => d.id === battleState.difficultyId) ?? DIFFICULTY_LEVELS[1];
-    const enemyHpInitPct = Math.min(100, Math.round(diff.coeff * 66.7));
     const enemyMpInitPct = Math.min(100, Math.round(diff.coeff * 55.0));
     updateBattleLogModalEnemy(enemyName, battleState.enemyAttribute, enemyTypeName, diff.coeff);
 
@@ -1666,8 +1665,9 @@ async function executeBattle() {
     appendLogDOM(modalLog, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
 
     // ターン行を1行ずつ時間差で表示
-    let enemyHpCurrent = enemyHpInitPct; // ターン中の敵HPバー追跡（演出用）
-    const enemyHpStep  = enemyHpInitPct / 3; // TURN_COUNT=3（battle.js定数と同値）
+    // 敵HPは満タン(100%)から開始・1撃の減少量 = 100 * winRate/100 / 3（打撃数の逆数で調整）
+    let enemyHpCurrent = 100;
+    const enemyHpStep  = Math.max(5, Math.round(100 * (result.winRate / 100) / 3));
     for (const turn of result.turns) {
       if (battleState.aborted) break;
       await sleep(LOG_TURN_DELAY_MS);
@@ -1677,7 +1677,7 @@ async function executeBattle() {
       if (turn.text.startsWith('⚔️') || turn.text.startsWith('💥')) {
         enemyHpCurrent = Math.max(0, enemyHpCurrent - enemyHpStep);
         const bar = document.getElementById('blm-enemy-hp-bar');
-        if (bar) bar.style.width = `${Math.round(enemyHpCurrent)}%`;
+        if (bar) bar.style.width = `${enemyHpCurrent}%`;
       }
     }
 
@@ -1691,9 +1691,9 @@ async function executeBattle() {
       appendLogDOM(modalLog, `💀 敗北... HP-${result.hpLoss}`, 'var(--color-hp)');
     }
 
-    // バー減少演出
+    // バー減少演出（ペット実値更新・敵バー終値確定）
     const petForAnim = await getPet(battleState.petId);
-    if (petForAnim) animateBattleBars(result, petForAnim, enemyHpInitPct, enemyMpInitPct);
+    if (petForAnim) animateBattleBars(result, petForAnim, enemyHpCurrent, enemyMpInitPct);
 
     // session集計
     battleState.session.battles++;
@@ -1841,11 +1841,9 @@ function updateBattleLogModalEnemy(enemyName, enemyAttribute, typeName, diffCoef
   const mpBar   = document.getElementById('blm-enemy-mp-bar');
   if (nameEl) nameEl.textContent = enemyName;
   if (subEl)  subEl.textContent  = `${typeName} / ${enemyAttribute}`;
-  // 難易度係数をバー割合に変換（easy=0.5→50%, normal=1.0→75%, hard=1.5→100%）
-  const hpPct = Math.min(100, Math.round(diffCoeff * 66.7));
-  const mpPct = Math.min(100, Math.round(diffCoeff * 55.0));
-  if (hpBar) hpBar.style.width = `${hpPct}%`;
-  if (mpBar) mpBar.style.width = `${mpPct}%`;
+  // 敵バーは満タン(100%)から開始
+  if (hpBar) hpBar.style.width = '100%';
+  if (mpBar) mpBar.style.width = '100%';
 }
 
 /**
@@ -1855,7 +1853,7 @@ function updateBattleLogModalEnemy(enemyName, enemyAttribute, typeName, diffCoef
  * @param {number} enemyHpInitPct - 敵HP初期割合（updateBattleLogModalEnemyで設定した値）
  * @param {number} enemyMpInitPct - 敵MP初期割合
  */
-function animateBattleBars(result, pet, enemyHpInitPct, enemyMpInitPct) {
+function animateBattleBars(result, pet, enemyHpCurrent, enemyMpInitPct) {
   // ペット実値バー更新
   const petHpCap = pet.statCaps?.hp ?? 100;
   const petMpCap = pet.statCaps?.mp ?? 100;
@@ -1866,8 +1864,8 @@ function animateBattleBars(result, pet, enemyHpInitPct, enemyMpInitPct) {
   if (petHpBar) petHpBar.style.width = `${petHpPct}%`;
   if (petMpBar) petMpBar.style.width = `${petMpPct}%`;
 
-  // 敵疑似バー：勝利→0%、敗北→初期値の35%残存
-  const enemyHpAfter = result.won ? 0 : Math.round(enemyHpInitPct * 0.35);
+  // 敵バー終値：勝利→0%、敗北→ターン後残量をそのまま維持
+  const enemyHpAfter = result.won ? 0 : enemyHpCurrent;
   const enemyMpAfter = result.won ? 0 : Math.round(enemyMpInitPct * 0.35);
   const enemyHpBar = document.getElementById('blm-enemy-hp-bar');
   const enemyMpBar = document.getElementById('blm-enemy-mp-bar');
