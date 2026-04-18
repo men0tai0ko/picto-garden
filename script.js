@@ -1426,7 +1426,7 @@ async function renderBattle() {
   const petSelectHTML = `
     <div style="margin-bottom:14px">
       <div style="font-size:13px;font-weight:700;color:var(--color-text-light);margin-bottom:8px">ペット選択</div>
-      <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px">
+      <div id="pet-select-scroll" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px">
         ${pets.map(p => {
           const warn = p.hp <= 0 ? '⚠️HP0' : p.hunger <= 0 ? '⚠️満腹度低' : '';
           return `
@@ -1570,8 +1570,12 @@ async function renderBattle() {
   // ペット選択クリック
   area.querySelectorAll('[data-pet-id]').forEach(el => {
     el.addEventListener('click', () => {
+      const scrollEl = document.getElementById('pet-select-scroll');
+      const prevScroll = scrollEl ? scrollEl.scrollLeft : 0;
       battleState.petId = el.dataset.petId;
       renderBattle();
+      const scrollElAfter = document.getElementById('pet-select-scroll');
+      if (scrollElAfter) scrollElAfter.scrollLeft = prevScroll;
     });
   });
 
@@ -2038,7 +2042,10 @@ function initGardenFooter() {
       <div class="item-tray-handle"></div>
       <div class="item-tray-header">
         <span style="font-size:13px;font-weight:700;color:var(--color-text)">アイテムを選択</span>
-        <span id="item-tray-count" style="font-size:11px;color:var(--color-text-light)"></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="item-tray-count" style="font-size:11px;color:var(--color-text-light)"></span>
+          <button id="item-tray-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--color-text-light);padding:2px 4px;line-height:1">×</button>
+        </div>
       </div>
       <div class="item-tray-tabs" id="item-tray-tabs"></div>
       <div class="item-tray-list" id="item-tray-list"></div>
@@ -2064,20 +2071,20 @@ function initGardenFooter() {
     tabsEl.appendChild(btn);
   });
 
-  // デコボタン
+  // トレイ×ボタン
+  document.getElementById('item-tray-close').addEventListener('click', () => {
+    closeItemTray();
+  });
+
+  // デコボタン：常にトレイを開く
   document.getElementById('garden-deco-btn').addEventListener('click', () => {
-    const tray = document.getElementById('item-tray');
-    if (tray.classList.contains('open')) {
-      closeItemTray();
-    } else {
-      // ペットパネルを閉じる
-      const panel = document.getElementById('pet-panel');
-      panel.classList.remove('open');
-      panel.classList.add('hidden');
-      panelOpenPetId = null;
-      renderTrayItems();
-      tray.classList.add('open');
-    }
+    // ペットパネルを閉じる
+    const panel = document.getElementById('pet-panel');
+    panel.classList.remove('open');
+    panel.classList.add('hidden');
+    panelOpenPetId = null;
+    renderTrayItems();
+    document.getElementById('item-tray').classList.add('open');
   });
 }
 

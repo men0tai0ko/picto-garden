@@ -215,3 +215,5 @@
 | ナビゲーション全画面不到達 | `renderBattle()` 内で `canBlock` をdiffHTML生成後に定義していたため参照エラー発生→定義を `diffHTML` 生成前に移動して修正 |
 | 給餌時 attack・defense が増加しない | `feedPet` の `allCapped` 判定が attack/defense の2ステのみだったため、hp/mp が未上限でも成長ブロックされていた → 4ステ全て上限の判定に修正（spec §1.5準拠） |
 | 全ステ上限到達後の餌やりでHP回復が発動しない | spec §1.5 の仕様が未実装だった → `FEED_HP_RESTORE=20` 定数追加・`allCapped` 時に `fresh.hp` を回復するよう実装 |
+| デコメニューに閉じるボタンがない | `#item-tray` ヘッダー右に×ボタンを追加・`closeItemTray()` をバインド。デコボタンの再タップ閉じ分岐は削除 |
+| 訓練ペット選択でスクロールが左端にリセットされる | `overflow-x:auto` コンテナに `id="pet-select-scroll"` を付与し、クリックハンドラで `scrollLeft` を退避・復元するよう修正 |
