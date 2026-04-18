@@ -44,7 +44,7 @@
   imageData: Blob,           // 元画像（IndexedDB保存）
   evolutionStage: number,    // 0/1/2
   statCaps: { hp, mp, attack, defense }, // calcStatCaps()による可変上限
-  generation: number         // 繁殖世代（直接生成=0、繁殖子=親の最大世代+1）
+  generation: number         // 繁殖世代（直接生成=1・バッジなし、繁殖子=親の最大世代+1・2世以上でバッジ表示）
 }
 ```
 

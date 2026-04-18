@@ -50,7 +50,7 @@ function wrapWithGenerationBadge(iconEl, generation) {
   const wrap = document.createElement('div');
   wrap.className = 'pet-icon-wrap';
   wrap.appendChild(iconEl);
-  if (generation >= 1) {
+  if (generation >= 2) {
     const badge = document.createElement('span');
     badge.className = 'generation-badge';
     badge.textContent = `${generation}世`;

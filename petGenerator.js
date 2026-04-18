@@ -270,6 +270,7 @@ function buildPetObject({ typeIndex, personality, attribute, rarity, imageBlob }
     rarity,
     imageData:   imageBlob,            // Blob（IndexedDBに保存）
     evolutionStage: 0,                 // 進化段階（0=未進化/1=stage1/2=stage2）
+    generation:  1,                    // 画像生成ペットは1世（バッジなし・2世以上でバッジ表示）
     statCaps:    calcStatCaps(typeIndex, personality, rarity),
   };
 }
@@ -497,7 +498,7 @@ export function breedPet(parentA, parentB, inheritedBlob) {
     rarity,
     imageData:        inheritedBlob,
     evolutionStage:   0,
-    generation:       Math.max(parentA.generation ?? 0, parentB.generation ?? 0) + 1,
+    generation:       Math.max(parentA.generation ?? 1, parentB.generation ?? 1) + 1,
     statCaps:         calcStatCaps(typeIndex, personalityIndex, rarity),
   };
 }
