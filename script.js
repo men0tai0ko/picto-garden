@@ -301,6 +301,23 @@ async function renderCage() {
   const user = await getUser();
   const pets = await getAllPets();
 
+  // ペット上限警告バナー
+  const screenCage = document.getElementById('screen-cage');
+  let capBanner = document.getElementById('cage-cap-banner');
+  if (pets.length >= BREED_PET_CAP) {
+    if (!capBanner) {
+      capBanner = document.createElement('p');
+      capBanner.id = 'cage-cap-banner';
+      capBanner.style.cssText = 'color:var(--color-hp);font-size:12px;text-align:center;background:rgba(232,84,84,0.1);border-radius:8px;padding:8px 12px;margin:0 16px 8px';
+      const titleRowEl = screenCage.querySelector('.cage-title-row');
+      if (titleRowEl) titleRowEl.after(capBanner);
+    }
+    capBanner.textContent = `⚠️ ペットの所持上限（${pets.length}/${BREED_PET_CAP}体）に達しています`;
+    capBanner.hidden = false;
+  } else if (capBanner) {
+    capBanner.hidden = true;
+  }
+
   pets.forEach(pet => {
     const card = document.createElement('div');
     card.className = 'cage-card';
@@ -1787,8 +1804,15 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
                   : '🛑 中断しました';
   const stopColor = stopReason === 'aborted' ? 'var(--color-text-light)' : 'var(--color-hp)';
 
+  const affinityLabel = lastResult.affinityMult > 1.0 ? '🔥 属性有利'
+                      : lastResult.affinityMult < 1.0 ? '💧 属性不利'
+                      : '— 属性等倍';
+  const affinityColor = lastResult.affinityMult > 1.0 ? 'var(--color-main)'
+                      : lastResult.affinityMult < 1.0 ? 'var(--color-hp)'
+                      : 'var(--color-text-light)';
   document.getElementById('battle-result-body').innerHTML = `
     <div style="font-size:12px;color:${stopColor};margin-bottom:6px">${stopLabel}</div>
+    <div style="font-size:12px;color:${affinityColor};margin-bottom:4px">${affinityLabel}（敵: ${lastResult.enemyAttribute}）</div>
     <div>HP <span style="color:var(--color-hp)">-${lastResult.hpLoss}</span><span style="font-size:11px;color:var(--color-text-light)">（最終戦）</span></div>
     <div>EXP <span style="color:var(--color-main)">+${session.totalExp}</span></div>
     <div>🪙 <span style="color:var(--color-accent)">+${session.totalCurrency}</span></div>
