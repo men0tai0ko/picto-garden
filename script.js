@@ -990,6 +990,9 @@ const STAT_GROWTH_MAX = 5;
 /** 餌の満腹回復量 */
 const FEED_HUNGER_RESTORE = 20;
 
+/** 全ステータス上限到達後の餌やりHP回復量（spec §1.5） */
+const FEED_HP_RESTORE = 20;
+
 /** ステータス上限 */
 const STAT_CAP = 100;
 
@@ -1241,7 +1244,10 @@ async function feedPet(pet) {
   // 全ステータスが上限か判定（spec §1.5：hp・mp・attack・defense 全4ステが上限で成長停止）
   const allCapped = fresh.hp >= caps.hp && fresh.mp >= caps.mp && fresh.attack >= caps.attack && fresh.defense >= caps.defense;
 
-  if (!allCapped) {
+  if (allCapped) {
+    // 全ステ上限到達後はHP回復のみ発動（spec §1.5）
+    fresh.hp = Math.min(caps.hp, fresh.hp + FEED_HP_RESTORE);
+  } else {
     const bonus      = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
     const growthProb = RARITY_GROWTH_PROB[fresh.rarity] ?? RARE_GROWTH_PROB;
 
