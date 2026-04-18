@@ -10,7 +10,7 @@
 import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet, syncHousingData } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES, SKILLS, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP, BREED_EVOLUTION_MIN } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
-import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier } from './battle.js';
+import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier, ENEMY_ATTRIBUTES } from './battle.js';
 
 // ===== 庭 時刻帯演出 =====
 /** 庭の時刻帯クラス更新インターバル管理 */
@@ -1381,6 +1381,11 @@ async function renderShop() {
 /** 訓練画面の状態（選択中難易度・選択中ペット・ログ・敵属性） */
 let battleState = { difficultyId: 'normal', petId: null, log: [], enemyAttribute: null, aborted: false, session: null };
 
+/** 敵種類ランダム抽選（モーダル演出用・バトル計算に影響しない） */
+function pickEnemyType() {
+  return PET_TYPES[Math.floor(Math.random() * PET_TYPES.length)].label;
+}
+
 async function renderBattle() {
   const screen = document.getElementById('screen-battle');
   screen.innerHTML = '<h2 class="screen-title">訓練</h2><div id="battle-area" style="padding:0 16px 24px"></div>';
@@ -1614,7 +1619,7 @@ async function executeBattle() {
   log.innerHTML = '';
   battleState.log = [];
   battleState.aborted = false;
-  battleState.session = { battles: 0, wins: 0, totalExp: 0, totalCurrency: 0 };
+  battleState.session = { battles: 0, wins: 0, totalExp: 0, totalCurrency: 0, battlesList: [] };
 
   const modalLog = showBattleLogModal();
 
@@ -1631,11 +1636,16 @@ async function executeBattle() {
 
     battleCount++;
     battleState.enemyAttribute = battleState.enemyAttribute ?? pickEnemyAttribute();
+    const enemyTypeName = pickEnemyType();
+    const enemyName = `${battleState.enemyAttribute}の${enemyTypeName.replace('系', '')}`;
 
     // 区切り行
     const sep = `── 第${battleCount}戦 ──`;
     appendLog(log, sep, 'var(--color-text-light)');
     appendLogDOM(modalLog, sep, 'var(--color-text-light)');
+
+    const diff = DIFFICULTY_LEVELS.find(d => d.id === battleState.difficultyId) ?? DIFFICULTY_LEVELS[1];
+    updateBattleLogModalEnemy(enemyName, battleState.enemyAttribute, enemyTypeName, diff.coeff);
 
     const result = await runBattle(battleState.petId, battleState.difficultyId, battleState.enemyAttribute);
     battleState.enemyAttribute = null; // 次戦で再抽選
@@ -1676,6 +1686,7 @@ async function executeBattle() {
     if (result.won) battleState.session.wins++;
     battleState.session.totalExp      += result.expGained;
     battleState.session.totalCurrency += result.currencyGained;
+    battleState.session.battlesList.push({ no: battleCount, enemyName, won: result.won });
 
     // レベルアップ演出（連戦中も都度表示）
     if (result.leveledUp) {
@@ -1717,15 +1728,82 @@ function showBattleLogModal() {
     overlay = document.createElement('div');
     overlay.id = 'overlay-battle-log';
     overlay.className = 'overlay';
-    overlay.innerHTML = `
-      <div class="overlay-card" style="width:min(320px,88vw);max-height:60vh;overflow:hidden;display:flex;flex-direction:column;gap:10px">
-        <h3 style="font-size:16px">⚔️ 訓練中...</h3>
-        <div id="battle-log-modal-body" style="flex:1;overflow-y:auto;font-size:13px;line-height:2;text-align:left;min-height:80px"></div>
-        <button class="btn-primary" id="battle-abort-btn" style="background:var(--color-hp);padding:8px 20px;font-size:13px">中断</button>
-      </div>
-    `;
     document.body.appendChild(overlay);
   }
+
+  // 選択中ペットデータを同期取得（キャッシュ不要・getPetは非同期だがここではbattleState.petIdのDOM描画のみ）
+  overlay.innerHTML = `
+    <div style="background:var(--color-white);border-radius:20px;width:min(320px,88vw);height:420px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.18)">
+      <div style="padding:12px 16px 10px;border-bottom:1px solid rgba(154,136,112,0.2);flex-shrink:0">
+        <p style="margin:0;font-size:14px;font-weight:700;text-align:center;color:var(--color-text)">訓練中</p>
+      </div>
+      <div id="battle-log-modal-vs" style="padding:12px 16px 10px;display:grid;grid-template-columns:1fr 24px 1fr;align-items:start;flex-shrink:0">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+          <canvas id="blm-pet-canvas" width="72" height="72" style="border-radius:10px;flex-shrink:0"></canvas>
+          <p id="blm-pet-name" style="margin:0;font-size:12px;font-weight:700;color:var(--color-text);text-align:center"></p>
+          <p id="blm-pet-sub" style="margin:0;font-size:10px;color:var(--color-text-light);text-align:center"></p>
+          <div style="width:100%;display:flex;flex-direction:column;gap:4px;margin-top:2px">
+            <div>
+              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">HP</div>
+              <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
+                <div id="blm-pet-hp-bar" style="height:100%;border-radius:3px;background:var(--color-hp)"></div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">MP</div>
+              <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
+                <div id="blm-pet-mp-bar" style="height:100%;border-radius:3px;background:var(--color-mp)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;justify-content:center;padding-top:28px">
+          <span style="font-size:11px;color:var(--color-text-light)">VS</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+          <div style="width:72px;height:72px;border-radius:10px;background:rgba(154,136,112,0.12);display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0">👾</div>
+          <p id="blm-enemy-name" style="margin:0;font-size:12px;font-weight:700;color:var(--color-text);text-align:center"></p>
+          <p id="blm-enemy-sub" style="margin:0;font-size:10px;color:var(--color-text-light);text-align:center"></p>
+          <div style="width:100%;display:flex;flex-direction:column;gap:4px;margin-top:2px">
+            <div>
+              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">HP</div>
+              <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
+                <div id="blm-enemy-hp-bar" style="height:100%;border-radius:3px;background:var(--color-hp)"></div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">MP</div>
+              <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
+                <div id="blm-enemy-mp-bar" style="height:100%;border-radius:3px;background:var(--color-mp)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="battle-log-modal-body" style="margin:0 16px;background:rgba(154,136,112,0.08);border-radius:10px;padding:10px 12px;flex:1;overflow-y:auto;font-size:12px;line-height:1.9;min-height:0"></div>
+      <div style="padding:10px 16px 14px;flex-shrink:0">
+        <button id="battle-abort-btn" style="width:100%;padding:10px 0;border-radius:12px;border:1px solid var(--color-hp);background:rgba(232,84,84,0.08);color:var(--color-hp);font-size:13px;font-weight:700;cursor:pointer">中断</button>
+      </div>
+    </div>
+  `;
+
+  // ペットデータを非同期で反映
+  getPet(battleState.petId).then(pet => {
+    if (!pet) return;
+    const nameEl = document.getElementById('blm-pet-name');
+    const subEl  = document.getElementById('blm-pet-sub');
+    const hpBar  = document.getElementById('blm-pet-hp-bar');
+    const mpBar  = document.getElementById('blm-pet-mp-bar');
+    if (nameEl) nameEl.textContent = pet.name ?? pet.type;
+    if (subEl)  subEl.textContent  = `${pet.type} / ${pet.attribute}`;
+    const hpCap = pet.statCaps?.hp ?? 100;
+    const mpCap = pet.statCaps?.mp ?? 100;
+    if (hpBar) hpBar.style.width = `${Math.min(100, (pet.hp / hpCap) * 100)}%`;
+    if (mpBar) mpBar.style.width = `${Math.min(100, (pet.mp / mpCap) * 100)}%`;
+    const canvas = document.getElementById('blm-pet-canvas');
+    if (canvas) drawPetToCanvas(pet, canvas, 72, 10);
+  });
+
   document.getElementById('battle-abort-btn').onclick = () => {
     battleState.aborted = true;
   };
@@ -1733,6 +1811,27 @@ function showBattleLogModal() {
   body.innerHTML = '';
   overlay.classList.remove('hidden');
   return body;
+}
+
+/**
+ * バトルログモーダルの敵情報を更新（各戦開始時に呼び出し）
+ * @param {string} enemyName - 「火のドラゴン」形式
+ * @param {string} enemyAttribute - 属性文字
+ * @param {string} typeName - 種類ラベル（「ドラゴン系」など）
+ * @param {number} diffCoeff - 難易度係数（敵HPバー割合算出用）
+ */
+function updateBattleLogModalEnemy(enemyName, enemyAttribute, typeName, diffCoeff) {
+  const nameEl  = document.getElementById('blm-enemy-name');
+  const subEl   = document.getElementById('blm-enemy-sub');
+  const hpBar   = document.getElementById('blm-enemy-hp-bar');
+  const mpBar   = document.getElementById('blm-enemy-mp-bar');
+  if (nameEl) nameEl.textContent = enemyName;
+  if (subEl)  subEl.textContent  = `${typeName} / ${enemyAttribute}`;
+  // 難易度係数をバー割合に変換（easy=0.5→50%, normal=1.0→75%, hard=1.5→100%）
+  const hpPct = Math.min(100, Math.round(diffCoeff * 66.7));
+  const mpPct = Math.min(100, Math.round(diffCoeff * 55.0));
+  if (hpBar) hpBar.style.width = `${hpPct}%`;
+  if (mpBar) mpBar.style.width = `${mpPct}%`;
 }
 
 /** バトルログモーダルを閉じる */
@@ -1772,51 +1871,56 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
     overlay = document.createElement('div');
     overlay.id = 'overlay-battle-result';
     overlay.className = 'overlay';
-    overlay.innerHTML = `
-      <div class="overlay-card">
-        <h3 id="battle-result-title"></h3>
-        <canvas id="battle-result-pet-canvas" width="72" height="72" style="border-radius:12px;margin:4px 0"></canvas>
-        <div id="battle-result-body" style="width:100%;text-align:left;font-size:14px;line-height:2"></div>
-        <button class="btn-primary" id="battle-result-ok-btn">OK</button>
-      </div>
-    `;
     document.body.appendChild(overlay);
   }
 
-  // タイトル：勝利数/総戦闘数
-  const titleEl = document.getElementById('battle-result-title');
-  titleEl.textContent = `${session.wins}勝 / ${session.battles}戦`;
-  titleEl.style.color = session.wins > 0 ? 'var(--color-main)' : 'var(--color-hp)';
-
-  // ペット画像描画
-  const pet = await getPet(battleState.petId);
-  if (pet) {
-    const resultCanvas = document.getElementById('battle-result-pet-canvas');
-    drawPetToCanvas(pet, resultCanvas, 72, 12);
-    resultCanvas.classList.remove('evo-stage-1', 'evo-stage-2');
-    const evoClass = getEvolutionClass(pet.evolutionStage ?? 0);
-    if (evoClass) resultCanvas.classList.add(evoClass);
-  }
-
-  // 停止理由ラベル
   const stopLabel = stopReason === 'hp0'     ? '⚠️ HPが0になりました'
                   : stopReason === 'hunger0' ? '⚠️ 満腹度が0になりました'
                   : '🛑 中断しました';
-  const stopColor = stopReason === 'aborted' ? 'var(--color-text-light)' : 'var(--color-hp)';
 
-  const affinityLabel = lastResult.affinityMult > 1.0 ? '🔥 属性有利'
-                      : lastResult.affinityMult < 1.0 ? '💧 属性不利'
-                      : '— 属性等倍';
-  const affinityColor = lastResult.affinityMult > 1.0 ? 'var(--color-main)'
-                      : lastResult.affinityMult < 1.0 ? 'var(--color-hp)'
-                      : 'var(--color-text-light)';
-  document.getElementById('battle-result-body').innerHTML = `
-    <div style="font-size:12px;color:${stopColor};margin-bottom:6px">${stopLabel}</div>
-    <div style="font-size:12px;color:${affinityColor};margin-bottom:4px">${affinityLabel}（敵: ${lastResult.enemyAttribute}）</div>
-    <div>HP <span style="color:var(--color-hp)">-${lastResult.hpLoss}</span><span style="font-size:11px;color:var(--color-text-light)">（最終戦）</span></div>
-    <div>EXP <span style="color:var(--color-main)">+${session.totalExp}</span></div>
-    <div>🪙 <span style="color:var(--color-accent)">+${session.totalCurrency}</span></div>
+  // 戦歴リスト行HTML
+  const battlesListHTML = (session.battlesList ?? []).map(b => `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(154,136,112,0.15)">
+      <span style="font-size:11px;color:var(--color-text-light);min-width:26px">${b.no}戦</span>
+      <span style="font-size:12px;color:var(--color-text-light);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.enemyName}</span>
+      <span style="font-size:12px;font-weight:700;color:${b.won ? 'var(--color-main)' : 'var(--color-hp)'}">${b.won ? '勝利' : '敗北'}</span>
+    </div>
+  `).join('');
+
+  overlay.innerHTML = `
+    <div style="background:var(--color-white);border-radius:20px;width:min(320px,88vw);height:420px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.18)">
+      <div style="padding:12px 16px 10px;border-bottom:1px solid rgba(154,136,112,0.2);flex-shrink:0">
+        <p id="bro-title" style="margin:0;font-size:14px;font-weight:700;text-align:center"></p>
+      </div>
+      <div style="padding:10px 16px 8px;border-bottom:1px solid rgba(154,136,112,0.2);flex-shrink:0;display:flex;justify-content:center;gap:24px">
+        <span style="font-size:13px;color:var(--color-text)">EXP <strong style="font-weight:700;color:var(--color-main)">+${session.totalExp}</strong></span>
+        <span style="font-size:13px;color:var(--color-text)">🪙 <strong style="font-weight:700;color:var(--color-accent)">+${session.totalCurrency}</strong></span>
+      </div>
+      <div style="padding:6px 16px 4px;flex-shrink:0;max-height:130px;overflow-y:auto">
+        ${battlesListHTML}
+        <div style="padding:6px 0;font-size:11px;color:var(--color-text-light);text-align:center">${stopLabel}</div>
+      </div>
+      <div id="bro-log" style="margin:0 16px;background:rgba(154,136,112,0.08);border-radius:10px;padding:10px 12px;flex:1;overflow-y:auto;font-size:12px;line-height:1.9;min-height:0"></div>
+      <div style="padding:10px 16px 14px;flex-shrink:0">
+        <button id="battle-result-ok-btn" style="width:100%;padding:10px 0;border-radius:12px;border:1px solid rgba(154,136,112,0.3);background:rgba(154,136,112,0.1);color:var(--color-text);font-size:13px;font-weight:700;cursor:pointer">OK</button>
+      </div>
+    </div>
   `;
+
+  // タイトル
+  const titleEl = document.getElementById('bro-title');
+  titleEl.textContent = `${session.wins}勝 / ${session.battles}戦`;
+  titleEl.style.color = session.wins > 0 ? 'var(--color-main)' : 'var(--color-hp)';
+
+  // ログを転写
+  const broLog = document.getElementById('bro-log');
+  battleState.log.forEach(({ text, color }) => {
+    const line = document.createElement('div');
+    line.style.color = color;
+    line.textContent = text;
+    broLog.appendChild(line);
+  });
+  broLog.scrollTop = broLog.scrollHeight;
 
   overlay.classList.remove('hidden');
   document.getElementById('battle-result-ok-btn').onclick = () => {
