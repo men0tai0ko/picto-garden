@@ -1238,8 +1238,8 @@ async function feedPet(pet) {
   // ステータス上限（個性反映：statCapsがあれば使用、なければSTAT_CAP）
   const caps = fresh.statCaps ?? { hp: STAT_CAP, mp: STAT_CAP, attack: STAT_CAP, defense: STAT_CAP };
 
-  // 全ステータスが上限か判定（攻撃・防御のみ対象）
-  const allCapped = fresh.attack >= caps.attack && fresh.defense >= caps.defense;
+  // 全ステータスが上限か判定（spec §1.5：hp・mp・attack・defense 全4ステが上限で成長停止）
+  const allCapped = fresh.hp >= caps.hp && fresh.mp >= caps.mp && fresh.attack >= caps.attack && fresh.defense >= caps.defense;
 
   if (!allCapped) {
     const bonus      = PERSONALITY_BONUS[fresh.personalityIndex] ?? PERSONALITY_BONUS[4];
