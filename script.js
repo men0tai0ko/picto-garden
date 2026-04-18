@@ -1666,11 +1666,19 @@ async function executeBattle() {
     appendLogDOM(modalLog, `敵属性: ${result.enemyAttribute} → 相性: ${affinityLabel} 勝率 ${result.winRate}%`);
 
     // ターン行を1行ずつ時間差で表示
+    let enemyHpCurrent = enemyHpInitPct; // ターン中の敵HPバー追跡（演出用）
+    const enemyHpStep  = enemyHpInitPct / 3; // TURN_COUNT=3（battle.js定数と同値）
     for (const turn of result.turns) {
       if (battleState.aborted) break;
       await sleep(LOG_TURN_DELAY_MS);
       appendLog(log, turn.text, turn.color);
       appendLogDOM(modalLog, turn.text, turn.color);
+      // 攻撃ヒット時に敵HPバーを段階減少
+      if (turn.text.startsWith('⚔️') || turn.text.startsWith('💥')) {
+        enemyHpCurrent = Math.max(0, enemyHpCurrent - enemyHpStep);
+        const bar = document.getElementById('blm-enemy-hp-bar');
+        if (bar) bar.style.width = `${Math.round(enemyHpCurrent)}%`;
+      }
     }
 
     await sleep(LOG_RESULT_DELAY_MS);
