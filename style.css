@@ -18,6 +18,7 @@
   --statusbar-height: 48px;
   --transition:       0.22s ease;
   --color-evo-stage1: #C0C0C0;
+  --app-max-width:    430px;
 }
 
 /* ===== リセット ===== */
@@ -912,4 +913,23 @@ body.screen-generate #generate-footer-cancel { display: flex; }
   line-height: 1.4;
   text-shadow: 0 0 2px rgba(58,46,30,0.8);
   pointer-events: none;
+}
+
+/* ===== PC / タブレット / 横画面：幅制限 ===== */
+@media (min-width: 481px) {
+  body {
+    background: #2A2010;
+  }
+  #screens {
+    background: var(--color-bg);
+  }
+  #status-bar,
+  #screens,
+  #garden-footer,
+  #cage-footer,
+  #item-tray,
+  #bottom-nav {
+    left: calc(50% - var(--app-max-width) / 2);
+    right: calc(50% - var(--app-max-width) / 2);
+  }
 }
