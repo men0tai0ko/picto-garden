@@ -487,8 +487,21 @@ async function showEvictDialog(user, incomingPetId, incomingCard) {
     info.textContent = pet.type;
 
     const sub = document.createElement('div');
-    sub.style.cssText = 'font-size:10px;color:var(--color-text-light)';
-    sub.textContent = `HP ${pet.hp} / 満腹 ${pet.hunger}`;
+    sub.style.cssText = 'font-size:10px;color:var(--color-text-light);margin-top:2px';
+    const hpPct     = Math.min(100, Math.max(0, (pet.hp / (pet.statCaps?.hp ?? 100)) * 100));
+    const hungerPct = Math.min(100, Math.max(0, pet.hunger));
+    sub.innerHTML = `
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px">
+        <span style="width:28px">HP</span>
+        <div style="flex:1;height:5px;background:#ddd;border-radius:3px"><div style="width:${hpPct}%;height:100%;background:var(--color-hp);border-radius:3px"></div></div>
+        <span style="width:24px;text-align:right">${pet.hp}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="width:28px">腹</span>
+        <div style="flex:1;height:5px;background:#ddd;border-radius:3px"><div style="width:${hungerPct}%;height:100%;background:#C4956A;border-radius:3px"></div></div>
+        <span style="width:24px;text-align:right">${pet.hunger}</span>
+      </div>
+    `;
     info.appendChild(sub);
 
     row.append(canvas, info);
@@ -692,6 +705,31 @@ async function renderGarden() {
     petWrapper.append(wrapWithGenerationBadge(canvas, pet.generation ?? 0), nameLabel);
     petsArea.appendChild(petWrapper);
   }
+
+  await renderGardenNavBadge();
+}
+
+/** 庭ナビアイコンの空腹度⚠️バッジを更新する */
+async function renderGardenNavBadge() {
+  const gardenNavBtn = document.querySelector('.nav-btn[data-screen="garden"]');
+  if (!gardenNavBtn) return;
+  const user2 = await getUser();
+  const hasHungry = user2.gardenPetIds.length > 0 &&
+    (await Promise.all(user2.gardenPetIds.map(id => getPet(id))))
+      .some(p => p && p.hunger <= 0);
+  let warnBadge = gardenNavBtn.querySelector('.garden-hunger-badge');
+  if (hasHungry) {
+    if (!warnBadge) {
+      warnBadge = document.createElement('span');
+      warnBadge.className = 'garden-hunger-badge';
+      warnBadge.textContent = '⚠️';
+      warnBadge.style.cssText = 'position:absolute;top:2px;right:2px;font-size:10px;line-height:1';
+      gardenNavBtn.style.position = 'relative';
+      gardenNavBtn.appendChild(warnBadge);
+    }
+  } else if (warnBadge) {
+    warnBadge.remove();
+  }
 }
 
 // ===== 下部パネル（庭ペットタップ時） =====
@@ -715,8 +753,9 @@ async function showPetPanel(pet) {
   const user  = await getUser();
   const price = 10 * user.level;
 
-  const inGarden   = user.gardenPetIds.includes(pet.id);
-  const gardenFull = !inGarden && user.gardenPetIds.length >= user.gardenSlots;
+  const inGarden    = user.gardenPetIds.includes(pet.id);
+  const gardenFull  = !inGarden && user.gardenPetIds.length >= user.gardenSlots;
+  const canAfeedFeed = user.currency >= price;
   content.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <canvas id="panel-pet-canvas" width="48" height="48" style="border-radius:10px;flex-shrink:0"></canvas>
@@ -743,13 +782,14 @@ async function showPetPanel(pet) {
     </div>
     ${statBar('満腹度', pet.hunger, 'hunger')}
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
-      <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px">🍖 餌 🪙${price}</button>
+      <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px${canAfeedFeed ? '' : ';background:#aaa'}" ${canAfeedFeed ? '' : 'disabled'}>🍖 ${canAfeedFeed ? `餌 🪙${price}` : '通貨不足'}</button>
       <button class="btn-primary" id="panel-water-btn" style="padding:10px 20px;font-size:14px;background:var(--color-mp)">💧 おみず</button>
     </div>
     <button id="panel-garden-btn" class="btn-primary" style="width:100%;margin-top:10px;font-size:14px;background:${inGarden ? 'var(--color-ground)' : gardenFull ? '#aaa' : 'var(--color-main)'}"
       ${gardenFull ? 'disabled' : ''}>
       ${inGarden ? '🏡 庭から外す' : gardenFull ? '🌿 庭がいっぱい' : '🌿 庭に出す'}
     </button>
+    <button id="panel-release-btn" class="btn-primary" style="width:100%;margin-top:6px;font-size:14px;background:var(--color-hp)">🌿 野に放つ</button>
   `;
 
   panel.classList.remove('hidden');
@@ -874,6 +914,13 @@ async function showPetPanel(pet) {
     panel.classList.add('hidden');
     panelOpenPetId = null;
   };
+
+  document.getElementById('panel-release-btn').addEventListener('click', () => {
+    panel.classList.remove('open');
+    panel.classList.add('hidden');
+    panelOpenPetId = null;
+    showReleaseConfirmDialog(pet);
+  });
 }
 
 // ===== 満腹度時間経過減少（tasks.md 改善提案・仕様#8） =====
@@ -934,6 +981,8 @@ function startHungerTimer() {
           if (card) updateCageCard(card, pet, user2);
         }
       }
+      // 庭ナビバッジ更新（空腹度0ペット在庭チェック）
+      await renderGardenNavBadge();
     } catch (err) {
       console.error('満腹度タイマーエラー:', err);
     }
