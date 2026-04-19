@@ -328,6 +328,7 @@ body {
   position: relative;
 }
 .cage-card.in-garden { border-color: var(--color-main); }
+.cage-card.cage-card-selected { border-color: var(--color-hp); background: rgba(232,84,84,0.07); }
 .cage-card img {
   width: 72px; height: 72px;
   border-radius: 12px;

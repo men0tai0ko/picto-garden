@@ -277,6 +277,8 @@ function showGeneratedOverlay(pet) {
 // ===== ケージ =====
 /** ケージ編集モード（trueのとき削除ボタンを表示） */
 let cageEditMode = false;
+/** 編集モード中の削除対象選択セット */
+let releaseSelection = new Set();
 
 async function renderCage() {
   const grid = document.getElementById('cage-grid');
@@ -342,23 +344,28 @@ async function renderCage() {
 
     card.append(wrapWithGenerationBadge(imgEl, pet.generation ?? 0), name);
 
-    // 編集モード時のみ削除ボタンを追加
+    // 編集モード：チェック選択トグル / 通常モード：ステータスパネル表示
     if (cageEditMode) {
       const inGarden = user.gardenPetIds.includes(pet.id);
-      const releaseBtn = document.createElement('button');
-      releaseBtn.style.cssText = `width:100%;margin-top:6px;padding:6px 0;border-radius:var(--radius-btn);border:none;font-size:11px;font-weight:700;cursor:${inGarden ? 'not-allowed' : 'pointer'};background:${inGarden ? 'var(--color-bg)' : 'rgba(232,84,84,0.12)'};color:${inGarden ? 'var(--color-text-light)' : 'var(--color-hp)'}`;
-      releaseBtn.textContent = inGarden ? '🏡 庭から外してください' : '🌿 野に放つ';
-      releaseBtn.disabled = inGarden;
-      releaseBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
+      if (inGarden) {
+        card.style.opacity = '0.45';
+      } else {
+        const isSelected = releaseSelection.has(pet.id);
+        if (isSelected) card.classList.add('cage-card-selected');
+        const checkEl = document.createElement('div');
+        checkEl.setAttribute('data-cage-check', '1');
+        checkEl.style.cssText = `position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:50%;border:2px solid var(--color-hp);background:${isSelected ? 'var(--color-hp)' : 'rgba(255,255,255,0.85)'};display:flex;align-items:center;justify-content:center;font-size:12px;pointer-events:none`;
+        checkEl.textContent = isSelected ? '✓' : '';
+        card.style.position = 'relative';
+        card.appendChild(checkEl);
+      }
+      card.addEventListener('click', () => {
         if (inGarden) return;
-        showReleaseConfirmDialog(pet);
+        toggleReleaseSelect(pet.id);
       });
-      card.appendChild(releaseBtn);
+    } else {
+      card.addEventListener('click', () => showPetPanel(pet));
     }
-
-    // カードタップ：ステータスパネルを表示
-    card.addEventListener('click', () => showPetPanel(pet));
 
     grid.appendChild(card);
   });
@@ -373,7 +380,7 @@ async function renderCage() {
 
   // 編集：モードに応じてラベル・active切替
   btnEdit.textContent = '';
-  btnEdit.innerHTML = `${cageEditMode ? '✅' : '✏️'}<span>${cageEditMode ? '完了' : '編集'}</span>`;
+  updateEditBtn(btnEdit);
   btnEdit.classList.toggle('active', cageEditMode);
 
   // イベントは毎回上書きで登録（onclick使用）
@@ -388,8 +395,14 @@ async function renderCage() {
     renderBreedScreen();
   };
   btnEdit.onclick = () => {
-    cageEditMode = !cageEditMode;
-    renderCage();
+    if (cageEditMode && releaseSelection.size > 0) {
+      // 選択済みペットを一括削除確認
+      showReleaseConfirmDialog([...releaseSelection]);
+    } else {
+      cageEditMode = !cageEditMode;
+      if (!cageEditMode) releaseSelection.clear();
+      renderCage();
+    }
   };
 }
 
@@ -2347,39 +2360,87 @@ function showSlotExpandOverlay(newSlots) {
 // ===== ペット削除確認ダイアログ =====
 
 /**
- * 野に放つ（削除）確認ダイアログを表示
- * @param {Pet} pet
+ * 編集ボタンラベルを選択数に応じて更新
+ * @param {HTMLElement} btnEdit
  */
-function showReleaseConfirmDialog(pet) {
+function updateEditBtn(btnEdit) {
+  if (!cageEditMode) {
+    btnEdit.innerHTML = `✏️<span>編集</span>`;
+    return;
+  }
+  const n = releaseSelection.size;
+  if (n > 0) {
+    btnEdit.innerHTML = `🌿<span>放つ(${n})</span>`;
+  } else {
+    btnEdit.innerHTML = `✅<span>完了</span>`;
+  }
+}
+
+/**
+ * チェック選択をトグルし、カードDOMのみ部分更新（スクロール位置を維持）
+ * @param {string} id
+ */
+function toggleReleaseSelect(id) {
+  if (releaseSelection.has(id)) {
+    releaseSelection.delete(id);
+  } else {
+    releaseSelection.add(id);
+  }
+  // カードDOM部分更新
+  const card = document.querySelector(`[data-cage-card="${id}"]`);
+  if (card) {
+    const isSelected = releaseSelection.has(id);
+    card.classList.toggle('cage-card-selected', isSelected);
+    const checkEl = card.querySelector('[data-cage-check]');
+    if (checkEl) {
+      checkEl.style.background = isSelected ? 'var(--color-hp)' : 'rgba(255,255,255,0.85)';
+      checkEl.textContent = isSelected ? '✓' : '';
+    }
+  }
+  // フッターボタンラベルのみ更新
+  const btnEdit = document.getElementById('cage-btn-edit');
+  if (btnEdit) updateEditBtn(btnEdit);
+}
+
+/**
+ * 野に放つ（削除）確認ダイアログを表示
+ * @param {string[]} ids - 削除対象ペットIDの配列
+ */
+async function showReleaseConfirmDialog(ids) {
+  const allPets = await getAllPets();
+  const targets = allPets.filter(p => ids.includes(p.id));
+  if (targets.length === 0) return;
+
   let overlay = document.getElementById('overlay-release-confirm');
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'overlay-release-confirm';
     overlay.className = 'overlay';
-    overlay.innerHTML = `
-      <div class="overlay-card">
-        <h3 style="color:var(--color-hp)">🌿 野に放つ</h3>
-        <canvas id="release-confirm-canvas" width="80" height="80" style="border-radius:14px;margin:4px 0"></canvas>
-        <p id="release-confirm-name" style="font-size:15px;font-weight:700"></p>
-        <p style="font-size:12px;color:var(--color-text-light);text-align:center">この操作は取り消せません。<br>本当に野に放ちますか？</p>
-        <div style="display:flex;gap:8px;width:100%;margin-top:4px">
-          <button class="btn-primary" id="release-confirm-ok" style="flex:1;background:var(--color-hp)">放つ</button>
-          <button class="btn-primary" id="release-confirm-cancel" style="flex:1;background:#aaa">キャンセル</button>
-        </div>
-      </div>
-    `;
     document.body.appendChild(overlay);
   }
 
-  document.getElementById('release-confirm-name').textContent = pet.name ?? pet.type;
-  drawPetToCanvas(pet, document.getElementById('release-confirm-canvas'), 80, 14);
+  const nameList = targets.map(p => p.name ?? p.type).join('、');
+  overlay.innerHTML = `
+    <div class="overlay-card">
+      <h3 style="color:var(--color-hp)">🌿 野に放つ</h3>
+      <p id="release-confirm-name" style="font-size:14px;font-weight:700;text-align:center;word-break:break-all">${nameList}</p>
+      <p style="font-size:12px;color:var(--color-text-light);text-align:center">この操作は取り消せません。<br>${targets.length}体を野に放ちますか？</p>
+      <div style="display:flex;gap:8px;width:100%;margin-top:4px">
+        <button class="btn-primary" id="release-confirm-ok" style="flex:1;background:var(--color-hp)">放つ</button>
+        <button class="btn-primary" id="release-confirm-cancel" style="flex:1;background:#aaa">キャンセル</button>
+      </div>
+    </div>
+  `;
   overlay.classList.remove('hidden');
 
   document.getElementById('release-confirm-cancel').onclick = () => overlay.classList.add('hidden');
 
   document.getElementById('release-confirm-ok').onclick = async () => {
     overlay.classList.add('hidden');
-    await deletePet(pet.id);
+    for (const pet of targets) {
+      await deletePet(pet.id);
+    }
+    releaseSelection.clear();
     cageEditMode = false;
     await renderCage();
     await renderGarden();
