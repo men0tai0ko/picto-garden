@@ -88,21 +88,21 @@ const RARITY_THRESHOLDS = [
 
 /** 輪郭解析：エッジ密度閾値（輪郭 → 種類）既存5種用・変更禁止 */
 const EDGE_DENSITY_THRESHOLDS = {
-  aspect_tall:   0.8,   // 縦横比（高さ/幅）：縦長判定
-  aspect_wide:   1.3,   // 横長判定
-  center_y_high: 0.42,  // 重心Y（正規化）：上寄り
-  center_y_low:  0.58,  // 重心Y：下寄り
-  edge_high:     0.18,  // エッジ密度高
-  edge_low:      0.06,  // エッジ密度低
+  aspect_tall:   1.02,  // 縦横比（高さ/幅）：縦長判定
+  aspect_wide:   1.12,  // 横長判定
+  center_y_high: 0.49,  // 重心Y（正規化）：上寄り
+  center_y_low:  0.44,  // 重心Y：下寄り
+  edge_high:     0.125, // エッジ密度高
+  edge_low:      0.035, // エッジ密度低
 };
 
 /** 新5種専用独立閾値定数（既存定数と分離・既存分岐に影響しない） */
 const NEW_TYPE_THRESHOLDS = {
-  edge_very_low:  0.03,  // 幻影系：精霊系より更に低いエッジ
-  edge_very_high: 0.28,  // 岩石系：野獣系より更に高いエッジ
-  edge_mid:       0.12,  // 水棲系：edge_low〜edge_highの中間帯
-  aspect_mid_low: 0.85,  // 水棲系・植物系：中央帯の下限
-  aspect_mid_high: 1.25, // 水棲系：中央帯の上限（aspect_wideより低い）
+  edge_very_low:  0.003, // 幻影系：精霊系より更に低いエッジ
+  edge_very_high: 0.195, // 岩石系：野獣系より更に高いエッジ
+  edge_mid:       0.100, // 水棲系：edge_low〜edge_highの中間帯
+  aspect_mid_low: 0.72,  // 水棲系・植物系：中央帯の下限
+  aspect_mid_high: 1.35, // 水棲系：中央帯の上限
 };
 
 // ===== メイン生成関数 =====
