@@ -143,7 +143,7 @@ export async function runBattle(petId, difficultyId, enemyAttribute) {
     affinityMult,
     skillActivated,
     skillName:       skillActivated ? skill.label : null,
-    turns:           buildTurns(won, skillActivated, skill.label),
+    turns:           buildTurns(won, skillActivated, skill.label, pet.mp <= 0),
   };
 }
 
@@ -156,8 +156,12 @@ export async function runBattle(petId, difficultyId, enemyAttribute) {
  * @param {string} skillLabel
  * @returns {{ text: string, color: string }[]}
  */
-function buildTurns(won, skillActivated, skillLabel) {
+function buildTurns(won, skillActivated, skillLabel, mpZero = false) {
   const turns = [];
+
+  if (mpZero && !skillActivated) {
+    turns.push({ text: '💤 スキル不発動（MP不足）', color: 'var(--color-text-light)' });
+  }
 
   for (let i = 0; i < TURN_COUNT; i++) {
     // スキル発動は最初のターンに1回だけ挿入

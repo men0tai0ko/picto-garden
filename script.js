@@ -255,7 +255,7 @@ function showGeneratedOverlay(pet) {
     <div class="result-row">属性: <span>${pet.attribute}</span></div>
     <div class="result-row">等級: <span>${pet.rarity}</span></div>
     <div class="result-row" style="font-size:11px;color:var(--color-text-light)">${rarityDesc[pet.rarity] ?? ''}</div>
-    <div class="result-row">HP: <span>${pet.hp}</span> / MP: <span>${pet.mp}</span></div>
+    <div class="result-row">体力: <span>${pet.hp}</span> / 魔力: <span>${pet.mp}</span></div>
     <div class="result-row">攻撃: <span>${pet.attack}</span> / 防御: <span>${pet.defense}</span></div>
   `;
   infoArea.insertAdjacentHTML('beforeend', infoHTML);
@@ -422,11 +422,11 @@ function cageStatBarHTML(pet) {
   return `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px">
       <div>
-        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">HP ${pet.hp}</div>
+        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">体力 ${pet.hp}</div>
         <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar hp" style="width:${c(pet.hp, pet.statCaps?.hp)}%"></div></div>
       </div>
       <div>
-        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">MP ${pet.mp}</div>
+        <div style="font-size:9px;color:var(--color-text-light);margin-bottom:2px">魔力 ${pet.mp}</div>
         <div class="stat-bar-wrap" style="height:5px"><div class="stat-bar mp" style="width:${c(pet.mp, pet.statCaps?.mp)}%"></div></div>
       </div>
       <div>
@@ -488,7 +488,7 @@ async function showEvictDialog(user, incomingPetId, incomingCard) {
 
     const sub = document.createElement('div');
     sub.style.cssText = 'font-size:10px;color:var(--color-text-light)';
-    sub.textContent = `HP ${pet.hp} / 満腹 ${pet.hunger}`;
+    sub.textContent = `体力 ${pet.hp} / 満腹 ${pet.hunger}`;
     info.appendChild(sub);
 
     row.append(canvas, info);
@@ -736,8 +736,8 @@ async function showPetPanel(pet) {
     </div>
     <div style="font-size:11px;color:var(--color-mp);margin-bottom:8px">✨ スキル: ${SKILLS.find(s => s.id === pet.skill)?.label ?? pet.skill ?? '—'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-      ${statBar('HP',    pet.hp,     'hp',  pet.statCaps?.hp      ?? 100)}
-      ${statBar('MP',    pet.mp,     'mp',  pet.statCaps?.mp      ?? 100)}
+      ${statBar('体力',  pet.hp,     'hp',  pet.statCaps?.hp      ?? 100)}
+      ${statBar('魔力',  pet.mp,     'mp',  pet.statCaps?.mp      ?? 100)}
       ${statBar('攻撃',  pet.attack, 'atk', pet.statCaps?.attack  ?? 100)}
       ${statBar('防御',  pet.defense,'def', pet.statCaps?.defense ?? 100)}
     </div>
@@ -1482,8 +1482,8 @@ async function renderBattle() {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px">
-        ${statBar('HP',   selectedPet.hp,      'hp',  selectedPet.statCaps?.hp      ?? 100)}
-        ${statBar('MP',   selectedPet.mp,      'mp',  selectedPet.statCaps?.mp      ?? 100)}
+        ${statBar('体力', selectedPet.hp,      'hp',  selectedPet.statCaps?.hp      ?? 100)}
+        ${statBar('魔力', selectedPet.mp,      'mp',  selectedPet.statCaps?.mp      ?? 100)}
         ${statBar('攻撃', selectedPet.attack,  'atk', selectedPet.statCaps?.attack  ?? 100)}
         ${statBar('防御', selectedPet.defense, 'def', selectedPet.statCaps?.defense ?? 100)}
       </div>
@@ -1706,11 +1706,11 @@ async function executeBattle() {
     await sleep(LOG_RESULT_DELAY_MS);
 
     if (result.won) {
-      appendLog(log, `🎉 勝利！ HP-${result.hpLoss} / EXP+${result.expGained} / 🪙+${result.currencyGained}`, 'var(--color-main)');
-      appendLogDOM(modalLog, `🎉 勝利！ HP-${result.hpLoss} / EXP+${result.expGained} / 🪙+${result.currencyGained}`, 'var(--color-main)');
+      appendLog(log, `🎉 勝利！ 体力-${result.hpLoss} / EXP+${result.expGained} / 🪙+${result.currencyGained}`, 'var(--color-main)');
+      appendLogDOM(modalLog, `🎉 勝利！ 体力-${result.hpLoss} / EXP+${result.expGained} / 🪙+${result.currencyGained}`, 'var(--color-main)');
     } else {
-      appendLog(log, `💀 敗北... HP-${result.hpLoss}`, 'var(--color-hp)');
-      appendLogDOM(modalLog, `💀 敗北... HP-${result.hpLoss}`, 'var(--color-hp)');
+      appendLog(log, `💀 敗北... 体力-${result.hpLoss}`, 'var(--color-hp)');
+      appendLogDOM(modalLog, `💀 敗北... 体力-${result.hpLoss}`, 'var(--color-hp)');
     }
 
     // バー減少演出（ペット実値更新・敵バー終値確定）
@@ -1780,13 +1780,13 @@ function showBattleLogModal() {
           <p id="blm-pet-sub" style="margin:0;font-size:10px;color:var(--color-text-light);text-align:center"></p>
           <div style="width:100%;display:flex;flex-direction:column;gap:4px;margin-top:2px">
             <div>
-              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">HP</div>
+              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">体力</div>
               <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
                 <div id="blm-pet-hp-bar" style="height:100%;border-radius:3px;background:var(--color-hp);transition:width 0.5s ease"></div>
               </div>
             </div>
             <div>
-              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">MP</div>
+              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">魔力</div>
               <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
                 <div id="blm-pet-mp-bar" style="height:100%;border-radius:3px;background:var(--color-mp);transition:width 0.5s ease"></div>
               </div>
@@ -1802,13 +1802,13 @@ function showBattleLogModal() {
           <p id="blm-enemy-sub" style="margin:0;font-size:10px;color:var(--color-text-light);text-align:center"></p>
           <div style="width:100%;display:flex;flex-direction:column;gap:4px;margin-top:2px">
             <div>
-              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">HP</div>
+              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">体力</div>
               <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
                 <div id="blm-enemy-hp-bar" style="height:100%;border-radius:3px;background:var(--color-hp);transition:width 0.5s ease"></div>
               </div>
             </div>
             <div>
-              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">MP</div>
+              <div style="font-size:10px;color:var(--color-text-light);margin-bottom:2px">魔力</div>
               <div style="height:6px;background:rgba(154,136,112,0.15);border-radius:3px;overflow:hidden">
                 <div id="blm-enemy-mp-bar" style="height:100%;border-radius:3px;background:var(--color-mp);transition:width 0.5s ease"></div>
               </div>
@@ -2700,7 +2700,7 @@ function showBreedResultOverlay(child) {
     <div>性格: <strong>${child.personality}</strong></div>
     <div>属性: <strong>${child.attribute}</strong></div>
     <div>レア度: <strong>${child.rarity}</strong></div>
-    <div style="font-size:11px;color:var(--color-text-light)">HP ${child.hp} / MP ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
+    <div style="font-size:11px;color:var(--color-text-light)">体力 ${child.hp} / 魔力 ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
   `;
   overlay.classList.remove('hidden');
   const closeBreedResult = () => {
