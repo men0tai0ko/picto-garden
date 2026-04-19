@@ -109,7 +109,7 @@ const NEW_TYPE_THRESHOLDS = {
 
 /** 画像由来のtypeIndexに対して20%の確率でランダム種類に補正する */
 function adjustTypeIndex(baseTypeIndex) {
-  if (Math.random() < 0.20) {
+  if (Math.random() < 0.40) {
     return Math.floor(Math.random() * 10);
   }
   return baseTypeIndex;
