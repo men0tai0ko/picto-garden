@@ -88,21 +88,21 @@ const RARITY_THRESHOLDS = [
 
 /** 輪郭解析：エッジ密度閾値（輪郭 → 種類）既存5種用・変更禁止 */
 const EDGE_DENSITY_THRESHOLDS = {
-  aspect_tall:   1.02,  // 縦横比（高さ/幅）：縦長判定
-  aspect_wide:   1.12,  // 横長判定
-  center_y_high: 0.49,  // 重心Y（正規化）：上寄り
-  center_y_low:  0.44,  // 重心Y：下寄り
-  edge_high:     0.125, // エッジ密度高
-  edge_low:      0.035, // エッジ密度低
+  aspect_tall:   0.8,   // 縦横比（高さ/幅）：縦長判定
+  aspect_wide:   1.3,   // 横長判定
+  center_y_high: 0.42,  // 重心Y（正規化）：上寄り
+  center_y_low:  0.58,  // 重心Y：下寄り
+  edge_high:     0.18,  // エッジ密度高
+  edge_low:      0.06,  // エッジ密度低
 };
 
 /** 新5種専用独立閾値定数（既存定数と分離・既存分岐に影響しない） */
 const NEW_TYPE_THRESHOLDS = {
-  edge_very_low:  0.003, // 幻影系：精霊系より更に低いエッジ
-  edge_very_high: 0.195, // 岩石系：野獣系より更に高いエッジ
-  edge_mid:       0.100, // 水棲系：edge_low〜edge_highの中間帯
-  aspect_mid_low: 0.72,  // 水棲系・植物系：中央帯の下限
-  aspect_mid_high: 1.35, // 水棲系：中央帯の上限
+  edge_very_low:  0.03,  // 幻影系：精霊系より更に低いエッジ
+  edge_very_high: 0.28,  // 岩石系：野獣系より更に高いエッジ
+  edge_mid:       0.12,  // 水棲系：edge_low〜edge_highの中間帯
+  aspect_mid_low: 0.85,  // 水棲系・植物系：中央帯の下限
+  aspect_mid_high: 1.25, // 水棲系：中央帯の上限（aspect_wideより低い）
 };
 
 // ===== メイン生成関数 =====
@@ -173,22 +173,26 @@ export function analyzeContour(pixels, width, height) {
 
   // 幻影系：エッジ極小（精霊系より更に低い）
   if (edgeDensity < NT.edge_very_low) {
+    console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → 幻影系(9)`);
     return { typeIndex: 9, edgeDensity, aspectRatio };
   }
 
   // 岩石系：エッジ極大（野獣系より更に高い）
   if (edgeDensity >= NT.edge_very_high) {
+    console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → 岩石系(8)`);
     return { typeIndex: 8, edgeDensity, aspectRatio };
   }
 
   // 昆虫系：エッジ高・重心上寄り（野獣系の細分化）
   if (edgeDensity >= T.edge_high && cy < T.center_y_high) {
+    console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → 昆虫系(6)`);
     return { typeIndex: 6, edgeDensity, aspectRatio };
   }
 
   // 水棲系：エッジ中帯・アスペクト中央帯
   if (edgeDensity >= NT.edge_mid && edgeDensity < T.edge_high &&
       aspectRatio >= NT.aspect_mid_low && aspectRatio <= NT.aspect_mid_high) {
+    console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → 水棲系(5)`);
     return { typeIndex: 5, edgeDensity, aspectRatio };
   }
 
@@ -210,6 +214,8 @@ export function analyzeContour(pixels, width, height) {
     typeIndex = 7; // 植物系（上記いずれにも該当しない残余）
   }
 
+  const TYPE_NAMES = ['ドラゴン系','鳥類系','野獣系','スライム系','精霊系','水棲系','昆虫系','植物系','岩石系','幻影系'];
+  console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → ${TYPE_NAMES[typeIndex]}(${typeIndex})`);
   return { typeIndex, edgeDensity, aspectRatio };
 }
 
