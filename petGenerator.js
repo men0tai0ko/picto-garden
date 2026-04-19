@@ -90,20 +90,30 @@ const RARITY_THRESHOLDS = [
 const EDGE_DENSITY_THRESHOLDS = {
   aspect_tall:   0.8,   // 縦横比（高さ/幅）：縦長判定
   aspect_wide:   1.3,   // 横長判定
-  center_y_high: 0.42,  // 重心Y（正規化）：上寄り
+  center_y_high: 0.48,  // 重心Y（正規化）：上寄り（実測cy分布中央に合わせ調整）
   center_y_low:  0.58,  // 重心Y：下寄り
-  edge_high:     0.18,  // エッジ密度高
-  edge_low:      0.06,  // エッジ密度低
+  edge_high:     0.28,  // エッジ密度高（実測中央値ベースに調整）
+  edge_low:      0.12,  // エッジ密度低（実測下限ベースに調整）
 };
 
 /** 新5種専用独立閾値定数（既存定数と分離・既存分岐に影響しない） */
 const NEW_TYPE_THRESHOLDS = {
   edge_very_low:  0.03,  // 幻影系：精霊系より更に低いエッジ
-  edge_very_high: 0.28,  // 岩石系：野獣系より更に高いエッジ
-  edge_mid:       0.12,  // 水棲系：edge_low〜edge_highの中間帯
+  edge_very_high: 0.44,  // 岩石系：実測上位20%ベースに調整
+  edge_mid:       0.15,  // 水棲系：実測最小値付近に調整
   aspect_mid_low: 0.85,  // 水棲系・植物系：中央帯の下限
   aspect_mid_high: 1.25, // 水棲系：中央帯の上限（aspect_wideより低い）
 };
+
+// ===== 種類補正（事後ランダム補正） =====
+
+/** 画像由来のtypeIndexに対して20%の確率でランダム種類に補正する */
+function adjustTypeIndex(baseTypeIndex) {
+  if (Math.random() < 0.40) {
+    return Math.floor(Math.random() * 10);
+  }
+  return baseTypeIndex;
+}
 
 // ===== メイン生成関数 =====
 
@@ -125,7 +135,7 @@ export async function generatePetFromImage(imageFile, canvas) {
   const rarity     = analyzeRarity(pixels);
 
   const pet = buildPetObject({
-    typeIndex:   typeResult.typeIndex,
+    typeIndex:   adjustTypeIndex(typeResult.typeIndex),
     personality,
     attribute,
     rarity,
