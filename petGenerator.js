@@ -183,26 +183,22 @@ export function analyzeContour(pixels, width, height) {
 
   // 幻影系：エッジ極小（精霊系より更に低い）
   if (edgeDensity < NT.edge_very_low) {
-    console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → 幻影系(9)`);
     return { typeIndex: 9, edgeDensity, aspectRatio };
   }
 
   // 岩石系：エッジ極大（野獣系より更に高い）
   if (edgeDensity >= NT.edge_very_high) {
-    console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → 岩石系(8)`);
     return { typeIndex: 8, edgeDensity, aspectRatio };
   }
 
   // 昆虫系：エッジ高・重心上寄り（野獣系の細分化）
   if (edgeDensity >= T.edge_high && cy < T.center_y_high) {
-    console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → 昆虫系(6)`);
     return { typeIndex: 6, edgeDensity, aspectRatio };
   }
 
   // 水棲系：エッジ中帯・アスペクト中央帯
   if (edgeDensity >= NT.edge_mid && edgeDensity < T.edge_high &&
       aspectRatio >= NT.aspect_mid_low && aspectRatio <= NT.aspect_mid_high) {
-    console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → 水棲系(5)`);
     return { typeIndex: 5, edgeDensity, aspectRatio };
   }
 
@@ -224,8 +220,6 @@ export function analyzeContour(pixels, width, height) {
     typeIndex = 7; // 植物系（上記いずれにも該当しない残余）
   }
 
-  const TYPE_NAMES = ['ドラゴン系','鳥類系','野獣系','スライム系','精霊系','水棲系','昆虫系','植物系','岩石系','幻影系'];
-  console.log(`[analyzeContour] edge=${edgeDensity.toFixed(4)} aspect=${aspectRatio.toFixed(3)} cy=${cy.toFixed(3)} → ${TYPE_NAMES[typeIndex]}(${typeIndex})`);
   return { typeIndex, edgeDensity, aspectRatio };
 }
 
