@@ -105,6 +105,16 @@ const NEW_TYPE_THRESHOLDS = {
   aspect_mid_high: 1.25, // 水棲系：中央帯の上限（aspect_wideより低い）
 };
 
+// ===== 種類補正（事後ランダム補正） =====
+
+/** 画像由来のtypeIndexに対して20%の確率でランダム種類に補正する */
+function adjustTypeIndex(baseTypeIndex) {
+  if (Math.random() < 0.20) {
+    return Math.floor(Math.random() * 10);
+  }
+  return baseTypeIndex;
+}
+
 // ===== メイン生成関数 =====
 
 /**
@@ -125,7 +135,7 @@ export async function generatePetFromImage(imageFile, canvas) {
   const rarity     = analyzeRarity(pixels);
 
   const pet = buildPetObject({
-    typeIndex:   typeResult.typeIndex,
+    typeIndex:   adjustTypeIndex(typeResult.typeIndex),
     personality,
     attribute,
     rarity,
