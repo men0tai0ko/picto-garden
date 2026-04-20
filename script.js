@@ -7,7 +7,7 @@
  * T5：報酬ループ（EXP・レベルアップ・レベルアップ演出）
  */
 
-import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet, syncHousingData } from './state.js';
+import { initDB, getUser, saveUser, getAllPets, getPet, savePet, registerNewPet, deletePet, syncHousingData, syncEncyclopediaFlags } from './state.js';
 import { generatePetFromImage, PET_TYPES, PERSONALITIES, SKILLS, breedPet, BREED_COST_MULTIPLIER, BREED_HUNGER_MIN, BREED_PET_CAP, BREED_EVOLUTION_MIN } from './petGenerator.js';
 import { spendCurrency, earnCurrency } from './economy.js';
 import { runBattle, DIFFICULTY_LEVELS, pickEnemyAttribute, getAffinityMultiplier, ENEMY_ATTRIBUTES } from './battle.js';
@@ -67,6 +67,7 @@ function wrapWithGenerationBadge(iconEl, generation) {
     await syncRarity();
     await syncGardenSlots();
     await syncHousingData();
+    await syncEncyclopediaFlags();
     await renderStatusBar();
     await renderEncyclopedia();
     await renderCage();
@@ -3280,6 +3281,409 @@ const ENC_ICON_DRAWERS = {
     _ellipseStroke(ctx, 33*s, 28*s, 4*s, 5*s, '#A569BD', '#D2B4DE', 1.2*s);
     _ellipse(ctx, 23*s, 28*s, 2*s, 3*s, '#E8DAEF');
     _ellipse(ctx, 33*s, 28*s, 2*s, 3*s, '#E8DAEF');
+  },
+
+  demon(ctx, s) {
+    ctx.fillStyle = '#4A235A';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body
+    _ellipseStroke(ctx, 28*s, 36*s, 12*s, 10*s, '#7D3C98', '#D2B4DE', 1.2*s);
+    // head
+    _circleStroke(ctx, 28*s, 20*s, 10*s, '#7D3C98', '#D2B4DE', 1.2*s);
+    // horns curved
+    _pathStroke(ctx, `M${22*s},${12*s} Q${16*s},${4*s} ${20*s},${2*s} Q${22*s},${8*s} ${24*s},${12*s}Z`, '#4A235A', '#D2B4DE', 1*s);
+    _pathStroke(ctx, `M${34*s},${12*s} Q${40*s},${4*s} ${36*s},${2*s} Q${34*s},${8*s} ${32*s},${12*s}Z`, '#4A235A', '#D2B4DE', 1*s);
+    // wings
+    _pathStroke(ctx, `M${16*s},${30*s} Q${4*s},${22*s} ${6*s},${38*s} Q${10*s},${44*s} ${16*s},${36*s}Z`, '#4A235A', '#D2B4DE', 1*s);
+    _pathStroke(ctx, `M${40*s},${30*s} Q${52*s},${22*s} ${50*s},${38*s} Q${46*s},${44*s} ${40*s},${36*s}Z`, '#4A235A', '#D2B4DE', 1*s);
+    // eyes glow
+    _ellipse(ctx, 24*s, 19*s, 3*s, 2*s, '#F9E79F');
+    _ellipse(ctx, 32*s, 19*s, 3*s, 2*s, '#F9E79F');
+    _circle(ctx, 24*s, 19*s, 1.2*s, '#E74C3C');
+    _circle(ctx, 32*s, 19*s, 1.2*s, '#E74C3C');
+  },
+
+  machine(ctx, s) {
+    ctx.fillStyle = '#1C2833';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body box
+    _rectStroke(ctx, 14*s, 26*s, 28*s, 22*s, 3*s, '#566573', '#AEB6BF', 1.5*s);
+    // head box
+    _rectStroke(ctx, 16*s, 10*s, 24*s, 18*s, 3*s, '#566573', '#AEB6BF', 1.5*s);
+    // eyes (lens)
+    _circleStroke(ctx, 23*s, 19*s, 4*s, '#1C2833', '#5DADE2', 1.5*s);
+    _circleStroke(ctx, 33*s, 19*s, 4*s, '#1C2833', '#5DADE2', 1.5*s);
+    _circle(ctx, 23*s, 19*s, 2*s, '#5DADE2');
+    _circle(ctx, 33*s, 19*s, 2*s, '#5DADE2');
+    // mouth grille
+    for (let i=0; i<3; i++) {
+      ctx.strokeStyle = '#AEB6BF'; ctx.lineWidth = 1*s;
+      ctx.beginPath(); ctx.moveTo(21*s, (22+i*2)*s); ctx.lineTo(35*s, (22+i*2)*s); ctx.stroke();
+    }
+    // bolts
+    _circle(ctx, 16*s, 12*s, 1.5*s, '#AEB6BF');
+    _circle(ctx, 40*s, 12*s, 1.5*s, '#AEB6BF');
+    // chest panel
+    _rectStroke(ctx, 20*s, 30*s, 16*s, 10*s, 2*s, '#1C2833', '#5DADE2', 1*s);
+  },
+
+  dragonoid(ctx, s) {
+    ctx.fillStyle = '#922B21';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body upright
+    _ellipseStroke(ctx, 28*s, 38*s, 11*s, 12*s, '#C0392B', '#FADBD8', 1.2*s);
+    // head
+    _circleStroke(ctx, 28*s, 18*s, 10*s, '#C0392B', '#FADBD8', 1.2*s);
+    // snout
+    _ellipseStroke(ctx, 28*s, 22*s, 6*s, 4*s, '#E74C3C', '#FADBD8', 1*s);
+    // horns small
+    _polyStroke(ctx, [[24*s,10*s],[22*s,4*s],[27*s,9*s]], '#922B21', '#FADBD8', 1*s);
+    _polyStroke(ctx, [[32*s,10*s],[34*s,4*s],[29*s,9*s]], '#922B21', '#FADBD8', 1*s);
+    // arms
+    _pathStroke(ctx, `M${17*s},${32*s} Q${8*s},${28*s} ${10*s},${40*s} Q${14*s},${44*s} ${17*s},${38*s}Z`, '#922B21', '#FADBD8', 1*s);
+    _pathStroke(ctx, `M${39*s},${32*s} Q${48*s},${28*s} ${46*s},${40*s} Q${42*s},${44*s} ${39*s},${38*s}Z`, '#922B21', '#FADBD8', 1*s);
+    // eyes
+    _circle(ctx, 25*s, 17*s, 2*s, '#F9E79F');
+    _circle(ctx, 31*s, 17*s, 2*s, '#F9E79F');
+  },
+
+  seagod(ctx, s) {
+    ctx.fillStyle = '#0E3A5F';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // large body
+    _ellipseStroke(ctx, 28*s, 34*s, 18*s, 14*s, '#1A6EA8', '#AED6F1', 1.5*s);
+    // tentacles
+    for (let i=0; i<5; i++) {
+      const tx = (14 + i*7)*s;
+      _pathStroke(ctx, `M${tx},${46*s} Q${(tx/s-2+i)*s},${54*s} ${tx},${56*s}`, '#0E3A5F', '#AED6F1', 1*s);
+    }
+    // head dome
+    _circleStroke(ctx, 28*s, 18*s, 12*s, '#2E86C1', '#AED6F1', 1.5*s);
+    // crown spikes
+    for (let i=0; i<5; i++) {
+      const angle = (-0.6 + i*0.3) * Math.PI;
+      const x1 = 28*s + Math.cos(angle)*12*s;
+      const y1 = 18*s + Math.sin(angle)*12*s;
+      const x2 = 28*s + Math.cos(angle)*18*s;
+      const y2 = 18*s + Math.sin(angle)*18*s;
+      ctx.strokeStyle = '#AED6F1'; ctx.lineWidth = 1.5*s; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    _circle(ctx, 23*s, 17*s, 3*s, '#F0F3F4');
+    _circle(ctx, 33*s, 17*s, 3*s, '#F0F3F4');
+    _circle(ctx, 23*s, 17*s, 1.5*s, '#1A252F');
+    _circle(ctx, 33*s, 17*s, 1.5*s, '#1A252F');
+  },
+
+  flamebeast(ctx, s) {
+    ctx.fillStyle = '#784212';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // flame aura
+    _pathStroke(ctx, `M${28*s},${8*s} Q${18*s},${2*s} ${14*s},${12*s} Q${10*s},${4*s} ${8*s},${16*s} Q${4*s},${8*s} ${6*s},${22*s} Q${2*s},${16*s} ${4*s},${30*s} Q${6*s},${44*s} ${14*s},${50*s} Q${28*s},${56*s} ${42*s},${50*s} Q${50*s},${44*s} ${52*s},${30*s} Q${54*s},${16*s} ${50*s},${22*s} Q${52*s},${8*s} ${48*s},${16*s} Q${46*s},${4*s} ${42*s},${12*s} Q${38*s},${2*s} ${28*s},${8*s}Z`, '#E67E22', '#FDEBD0', 1*s);
+    // body
+    _circleStroke(ctx, 28*s, 30*s, 14*s, '#E74C3C', '#FDEBD0', 1.5*s);
+    // eyes
+    _circle(ctx, 23*s, 28*s, 3*s, '#F9E79F');
+    _circle(ctx, 33*s, 28*s, 3*s, '#F9E79F');
+    _circle(ctx, 23*s, 28*s, 1.5*s, '#1A252F');
+    _circle(ctx, 33*s, 28*s, 1.5*s, '#1A252F');
+    // fangs
+    _poly(ctx, [[25*s,34*s],[23*s,40*s],[27*s,36*s]], 'white');
+    _poly(ctx, [[31*s,34*s],[33*s,40*s],[29*s,36*s]], 'white');
+  },
+
+  icecrystal(ctx, s) {
+    ctx.fillStyle = '#1A3A5C';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // crystal body hexagon
+    _pathStroke(ctx, `M${28*s},${8*s} L${44*s},${18*s} L${44*s},${38*s} L${28*s},${48*s} L${12*s},${38*s} L${12*s},${18*s}Z`, '#5DADE2', '#D6EAF8', 1.5*s);
+    // inner crystal
+    _pathStroke(ctx, `M${28*s},${16*s} L${38*s},${22*s} L${38*s},${34*s} L${28*s},${40*s} L${18*s},${34*s} L${18*s},${22*s}Z`, '#AED6F1', '#D6EAF8', 1*s);
+    // center glow
+    _circle(ctx, 28*s, 28*s, 6*s, '#EBF5FB');
+    // sparkles
+    ctx.strokeStyle = '#D6EAF8'; ctx.lineWidth = 1*s;
+    [[8,8],[48,8],[8,48],[48,48]].forEach(([x,y]) => {
+      ctx.beginPath(); ctx.moveTo((x-3)*s,y*s); ctx.lineTo((x+3)*s,y*s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x*s,(y-3)*s); ctx.lineTo(x*s,(y+3)*s); ctx.stroke();
+    });
+  },
+
+  thunder(ctx, s) {
+    ctx.fillStyle = '#1A3A1A';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // lightning body
+    _ellipseStroke(ctx, 28*s, 32*s, 14*s, 16*s, '#27AE60', '#F9E79F', 1.5*s);
+    // bolt
+    _pathStroke(ctx, `M${32*s},${10*s} L${24*s},${26*s} L${30*s},${26*s} L${22*s},${46*s} L${36*s},${28*s} L${28*s},${28*s}Z`, '#F9E79F', '#FDFEFE', 1.5*s);
+    // eyes
+    _circle(ctx, 23*s, 30*s, 2.5*s, '#F9E79F');
+    _circle(ctx, 33*s, 30*s, 2.5*s, '#F9E79F');
+    _circle(ctx, 23*s, 30*s, 1.2*s, '#1A252F');
+    _circle(ctx, 33*s, 30*s, 1.2*s, '#1A252F');
+  },
+
+  earthdoll(ctx, s) {
+    ctx.fillStyle = '#3E2723';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body blocky
+    _rectStroke(ctx, 12*s, 24*s, 32*s, 26*s, 4*s, '#795548', '#D7CCC8', 1.5*s);
+    // head
+    _rectStroke(ctx, 16*s, 8*s, 24*s, 20*s, 4*s, '#795548', '#D7CCC8', 1.5*s);
+    // tribal markings
+    ctx.strokeStyle = '#D7CCC8'; ctx.lineWidth = 1.5*s;
+    ctx.beginPath(); ctx.moveTo(22*s,14*s); ctx.lineTo(34*s,14*s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(22*s,18*s); ctx.lineTo(34*s,18*s); ctx.stroke();
+    // eyes dots
+    _circle(ctx, 23*s, 22*s, 2.5*s, '#FFEB3B');
+    _circle(ctx, 33*s, 22*s, 2.5*s, '#FFEB3B');
+    // belly symbol
+    _circle(ctx, 28*s, 36*s, 5*s, '#3E2723');
+    ctx.strokeStyle = '#D7CCC8'; ctx.lineWidth = 1.5*s;
+    ctx.beginPath(); ctx.arc(28*s, 36*s, 4*s, 0, Math.PI*2); ctx.stroke();
+  },
+
+  kitsune(ctx, s) {
+    ctx.fillStyle = '#6E2C0E';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body
+    _ellipseStroke(ctx, 28*s, 36*s, 12*s, 10*s, '#E67E22', '#FDEBD0', 1.2*s);
+    // head
+    _circleStroke(ctx, 28*s, 20*s, 11*s, '#E67E22', '#FDEBD0', 1.2*s);
+    // fox ears
+    _polyStroke(ctx, [[20*s,12*s],[14*s,2*s],[24*s,10*s]], '#E67E22', '#FDEBD0', 1*s);
+    _polyStroke(ctx, [[36*s,12*s],[42*s,2*s],[32*s,10*s]], '#E67E22', '#FDEBD0', 1*s);
+    // inner ear
+    _poly(ctx, [[21*s,11*s],[16*s,4*s],[23*s,10*s]], '#FDEBD0');
+    _poly(ctx, [[35*s,11*s],[40*s,4*s],[33*s,10*s]], '#FDEBD0');
+    // tails (3 visible)
+    _pathStroke(ctx, `M${28*s},${44*s} Q${18*s},${52*s} ${14*s},${48*s} Q${20*s},${46*s} ${26*s},${44*s}Z`, '#E67E22', '#FDEBD0', 1*s);
+    _pathStroke(ctx, `M${28*s},${44*s} Q${28*s},${54*s} ${28*s},${56*s} Q${30*s},${52*s} ${30*s},${44*s}Z`, '#E67E22', '#FDEBD0', 1*s);
+    _pathStroke(ctx, `M${28*s},${44*s} Q${38*s},${52*s} ${42*s},${48*s} Q${36*s},${46*s} ${30*s},${44*s}Z`, '#E67E22', '#FDEBD0', 1*s);
+    // eyes
+    _circle(ctx, 24*s, 19*s, 2.5*s, '#9B59B6');
+    _circle(ctx, 32*s, 19*s, 2.5*s, '#9B59B6');
+    _circle(ctx, 24*s, 19*s, 1.2*s, '#1A252F');
+    _circle(ctx, 32*s, 19*s, 1.2*s, '#1A252F');
+  },
+
+  giant(ctx, s) {
+    ctx.fillStyle = '#1A5276';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // huge body
+    _rectStroke(ctx, 10*s, 22*s, 36*s, 30*s, 6*s, '#2E86C1', '#AED6F1', 1.5*s);
+    // large head
+    _circleStroke(ctx, 28*s, 16*s, 14*s, '#2E86C1', '#AED6F1', 1.5*s);
+    // fists
+    _circleStroke(ctx, 8*s, 38*s, 7*s, '#1A5276', '#AED6F1', 1.5*s);
+    _circleStroke(ctx, 48*s, 38*s, 7*s, '#1A5276', '#AED6F1', 1.5*s);
+    // eyes
+    _circle(ctx, 23*s, 15*s, 3.5*s, '#F8C471');
+    _circle(ctx, 33*s, 15*s, 3.5*s, '#F8C471');
+    _circle(ctx, 23*s, 15*s, 1.8*s, '#1A252F');
+    _circle(ctx, 33*s, 15*s, 1.8*s, '#1A252F');
+    // mouth
+    ctx.strokeStyle = '#AED6F1'; ctx.lineWidth = 2*s; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(22*s,22*s); ctx.lineTo(34*s,22*s); ctx.stroke();
+  },
+
+  fungus(ctx, s) {
+    ctx.fillStyle = '#1A2A1A';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // cap
+    _pathStroke(ctx, `M${6*s},${30*s} Q${6*s},${10*s} ${28*s},${8*s} Q${50*s},${10*s} ${50*s},${30*s}Z`, '#8E44AD', '#D2B4DE', 1.5*s);
+    // cap spots
+    _circle(ctx, 18*s, 18*s, 3*s, '#D2B4DE');
+    _circle(ctx, 28*s, 14*s, 3*s, '#D2B4DE');
+    _circle(ctx, 38*s, 18*s, 3*s, '#D2B4DE');
+    // stem
+    _rectStroke(ctx, 20*s, 30*s, 16*s, 20*s, 4*s, '#7D3C98', '#D2B4DE', 1.2*s);
+    // gills
+    ctx.strokeStyle = '#D2B4DE'; ctx.lineWidth = 0.8*s;
+    for (let i=0; i<5; i++) {
+      const x = (10 + i*9)*s;
+      ctx.beginPath(); ctx.moveTo(x, 30*s); ctx.lineTo(28*s, 30*s); ctx.stroke();
+    }
+    // spores
+    [[8,6],[48,8],[6,40],[50,42]].forEach(([x,y]) => _circle(ctx, x*s, y*s, 1.5*s, '#D2B4DE'));
+  },
+
+  sandstorm(ctx, s) {
+    ctx.fillStyle = '#7D6608';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // swirl body
+    ctx.strokeStyle = '#F9E79F'; ctx.lineWidth = 2*s; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(28*s, 28*s, 18*s, 0.3, 2.0*Math.PI); ctx.stroke();
+    ctx.beginPath(); ctx.arc(28*s, 28*s, 12*s, 0.8, 1.8*Math.PI); ctx.stroke();
+    ctx.beginPath(); ctx.arc(28*s, 28*s, 6*s,  1.2, 1.6*Math.PI); ctx.stroke();
+    // sand particles
+    [[10,12],[46,14],[8,36],[48,40],[20,6],[36,8],[14,48],[44,46]].forEach(([x,y]) => {
+      _circle(ctx, x*s, y*s, 1.5*s, '#F9E79F');
+    });
+    // eyes
+    _circle(ctx, 23*s, 26*s, 3*s, '#F9E79F');
+    _circle(ctx, 33*s, 26*s, 3*s, '#F9E79F');
+    _circle(ctx, 23*s, 26*s, 1.5*s, '#7D6608');
+    _circle(ctx, 33*s, 26*s, 1.5*s, '#7D6608');
+  },
+
+  abyss(ctx, s) {
+    ctx.fillStyle = '#0A0E1A';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body mass
+    _pathStroke(ctx, `M${28*s},${48*s} Q${8*s},${46*s} ${6*s},${28*s} Q${6*s},${12*s} ${28*s},${10*s} Q${50*s},${12*s} ${50*s},${28*s} Q${48*s},${46*s} ${28*s},${48*s}Z`, '#154360', '#5DADE2', 1.5*s);
+    // tentacle fringe bottom
+    ctx.strokeStyle = '#5DADE2'; ctx.lineWidth = 1*s; ctx.lineCap = 'round';
+    for (let i=0; i<6; i++) {
+      const x = (10 + i*8)*s;
+      ctx.beginPath(); ctx.moveTo(x, 46*s); ctx.quadraticCurveTo((x/s+2)*s, 54*s, x, 56*s); ctx.stroke();
+    }
+    // bioluminescent eyes (multiple)
+    [[20,22],[36,22],[24,30],[32,30],[28,26]].forEach(([x,y], i) => {
+      const r = i===4 ? 4*s : 2.5*s;
+      _circle(ctx, x*s, y*s, r, '#5DADE2');
+    });
+  },
+
+  samurai(ctx, s) {
+    ctx.fillStyle = '#17202A';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body armor
+    _rectStroke(ctx, 12*s, 26*s, 32*s, 26*s, 2*s, '#2C3E50', '#D5D8DC', 1.5*s);
+    // shoulder guards
+    _rectStroke(ctx, 6*s, 26*s, 10*s, 12*s, 2*s, '#566573', '#D5D8DC', 1.2*s);
+    _rectStroke(ctx, 40*s, 26*s, 10*s, 12*s, 2*s, '#566573', '#D5D8DC', 1.2*s);
+    // helmet
+    _pathStroke(ctx, `M${12*s},${26*s} L${12*s},${14*s} Q${14*s},${6*s} ${28*s},${4*s} Q${42*s},${6*s} ${44*s},${14*s} L${44*s},${26*s}Z`, '#566573', '#D5D8DC', 1.5*s);
+    // visor
+    _rectStroke(ctx, 18*s, 16*s, 20*s, 8*s, 1*s, '#17202A', '#D5D8DC', 1*s);
+    // eye slit glow
+    _rectStroke(ctx, 20*s, 18*s, 6*s, 4*s, 1*s, '#17202A', '#E74C3C', 1*s);
+    _rectStroke(ctx, 30*s, 18*s, 6*s, 4*s, 1*s, '#17202A', '#E74C3C', 1*s);
+    // chest crest
+    ctx.strokeStyle = '#D5D8DC'; ctx.lineWidth = 1.5*s;
+    ctx.beginPath(); ctx.moveTo(28*s,30*s); ctx.lineTo(28*s,46*s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(20*s,38*s); ctx.lineTo(36*s,38*s); ctx.stroke();
+  },
+
+  angel(ctx, s) {
+    ctx.fillStyle = '#2E4057';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // large wings
+    _pathStroke(ctx, `M${18*s},${28*s} Q${2*s},${18*s} ${2*s},${8*s} Q${10*s},${14*s} ${16*s},${24*s} Q${10*s},${8*s} ${18*s},${6*s} Q${20*s},${18*s} ${18*s},${28*s}Z`, '#F0F3F4', '#FDFEFE', 1*s);
+    _pathStroke(ctx, `M${38*s},${28*s} Q${54*s},${18*s} ${54*s},${8*s} Q${46*s},${14*s} ${40*s},${24*s} Q${46*s},${8*s} ${38*s},${6*s} Q${36*s},${18*s} ${38*s},${28*s}Z`, '#F0F3F4', '#FDFEFE', 1*s);
+    // body
+    _ellipseStroke(ctx, 28*s, 38*s, 10*s, 12*s, '#BDC3C7', '#FDFEFE', 1.2*s);
+    // head with halo
+    _circleStroke(ctx, 28*s, 18*s, 10*s, '#F0F3F4', '#FDFEFE', 1.2*s);
+    ctx.strokeStyle = '#F9E79F'; ctx.lineWidth = 2*s;
+    ctx.beginPath(); ctx.arc(28*s, 8*s, 8*s, Math.PI, 0); ctx.stroke();
+    // eyes
+    _circle(ctx, 24*s, 17*s, 2*s, '#5DADE2');
+    _circle(ctx, 32*s, 17*s, 2*s, '#5DADE2');
+  },
+
+  skeleton(ctx, s) {
+    ctx.fillStyle = '#1C2833';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // skull
+    _circleStroke(ctx, 28*s, 18*s, 12*s, '#EAECEE', '#FDFEFE', 1.5*s);
+    // jaw
+    _rectStroke(ctx, 20*s, 26*s, 16*s, 8*s, 2*s, '#EAECEE', '#FDFEFE', 1.2*s);
+    // teeth
+    for (let i=0; i<4; i++) {
+      _rectStroke(ctx, (21+i*4)*s, 28*s, 3*s, 5*s, 1*s, '#FDFEFE', '#BDC3C7', 0.8*s);
+    }
+    // eye sockets
+    _ellipse(ctx, 23*s, 17*s, 4*s, 4.5*s, '#1C2833');
+    _ellipse(ctx, 33*s, 17*s, 4*s, 4.5*s, '#1C2833');
+    ctx.strokeStyle = '#FDFEFE'; ctx.lineWidth = 1*s;
+    ctx.beginPath(); ctx.ellipse(23*s,17*s,4*s,4.5*s,0,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(33*s,17*s,4*s,4.5*s,0,0,Math.PI*2); ctx.stroke();
+    // spine
+    ctx.strokeStyle = '#EAECEE'; ctx.lineWidth = 2*s;
+    ctx.beginPath(); ctx.moveTo(28*s,34*s); ctx.lineTo(28*s,50*s); ctx.stroke();
+    for (let i=0; i<4; i++) {
+      ctx.beginPath(); ctx.moveTo(22*s,(36+i*4)*s); ctx.lineTo(34*s,(36+i*4)*s); ctx.stroke();
+    }
+  },
+
+  lava(ctx, s) {
+    ctx.fillStyle = '#4A0E00';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // rocky body
+    _pathStroke(ctx, `M${14*s},${46*s} Q${8*s},${34*s} ${10*s},${22*s} Q${16*s},${10*s} ${28*s},${8*s} Q${40*s},${10*s} ${46*s},${22*s} Q${48*s},${34*s} ${42*s},${46*s}Z`, '#7D3C0E', '#F0B27A', 1.5*s);
+    // lava cracks
+    ctx.strokeStyle = '#E74C3C'; ctx.lineWidth = 1.5*s; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(20*s,16*s); ctx.lineTo(24*s,28*s); ctx.lineTo(18*s,38*s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(36*s,16*s); ctx.lineTo(32*s,28*s); ctx.lineTo(38*s,38*s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(22*s,28*s); ctx.lineTo(34*s,28*s); ctx.stroke();
+    // glow eyes
+    _circle(ctx, 23*s, 24*s, 3.5*s, '#E74C3C');
+    _circle(ctx, 33*s, 24*s, 3.5*s, '#E74C3C');
+    _circle(ctx, 23*s, 24*s, 1.8*s, '#F9E79F');
+    _circle(ctx, 33*s, 24*s, 1.8*s, '#F9E79F');
+  },
+
+  windspirit(ctx, s) {
+    ctx.fillStyle = '#1A2A3A';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // wind swirls
+    ctx.strokeStyle = '#AED6F1'; ctx.lineWidth = 1.5*s; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(28*s, 28*s, 20*s, -0.5, 1.5*Math.PI); ctx.stroke();
+    ctx.beginPath(); ctx.arc(28*s, 28*s, 14*s, -0.8, 1.2*Math.PI); ctx.stroke();
+    ctx.beginPath(); ctx.arc(28*s, 28*s, 8*s,  -1.0, 0.8*Math.PI); ctx.stroke();
+    // streaks
+    ctx.strokeStyle = '#D6EAF8'; ctx.lineWidth = 1*s;
+    [[4,14,18,10],[38,4,50,8],[4,44,14,48]].forEach(([x1,y1,x2,y2]) => {
+      ctx.beginPath(); ctx.moveTo(x1*s,y1*s); ctx.lineTo(x2*s,y2*s); ctx.stroke();
+    });
+    // core
+    _circleStroke(ctx, 28*s, 28*s, 6*s, '#5DADE2', '#D6EAF8', 1.5*s);
+    _circle(ctx, 28*s, 28*s, 3*s, '#EBF5FB');
+  },
+
+  beastman(ctx, s) {
+    ctx.fillStyle = '#4A2600';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // upright body
+    _rectStroke(ctx, 16*s, 28*s, 24*s, 22*s, 4*s, '#A04000', '#F0B27A', 1.2*s);
+    // head
+    _circleStroke(ctx, 28*s, 18*s, 12*s, '#A04000', '#F0B27A', 1.5*s);
+    // animal ears
+    _polyStroke(ctx, [[20*s,9*s],[14*s,0*s],[24*s,8*s]], '#4A2600', '#F0B27A', 1*s);
+    _polyStroke(ctx, [[36*s,9*s],[42*s,0*s],[32*s,8*s]], '#4A2600', '#F0B27A', 1*s);
+    // muzzle
+    _ellipseStroke(ctx, 28*s, 22*s, 7*s, 5*s, '#C0622A', '#F0B27A', 1*s);
+    // eyes
+    _circle(ctx, 23*s, 16*s, 2.5*s, '#F8C471');
+    _circle(ctx, 33*s, 16*s, 2.5*s, '#F8C471');
+    _circle(ctx, 23*s, 16*s, 1.2*s, '#1A252F');
+    _circle(ctx, 33*s, 16*s, 1.2*s, '#1A252F');
+    // claws
+    _poly(ctx, [[18*s,48*s],[16*s,54*s],[20*s,50*s]], '#F0B27A');
+    _poly(ctx, [[28*s,50*s],[28*s,56*s],[30*s,52*s]], '#F0B27A');
+    _poly(ctx, [[38*s,48*s],[40*s,54*s],[36*s,50*s]], '#F0B27A');
+  },
+
+  starghost(ctx, s) {
+    ctx.fillStyle = '#0A0A1A';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // ghostly body
+    _pathStroke(ctx, `M${28*s},${46*s} Q${14*s},${46*s} ${12*s},${30*s} Q${12*s},${14*s} ${28*s},${10*s} Q${44*s},${14*s} ${44*s},${30*s} Q${42*s},${46*s} ${36*s},${44*s} Q${32*s},${42*s} ${28*s},${46*s}Z`, '#2C3E7A', '#AEB6BF', 1.5*s);
+    // stars scattered
+    [[10,8],[46,10],[6,28],[50,30],[14,46],[44,48],[28,4],[8,16],[48,18]].forEach(([x,y]) => {
+      ctx.strokeStyle = '#F9E79F'; ctx.lineWidth = 1*s;
+      ctx.beginPath(); ctx.moveTo((x-3)*s,y*s); ctx.lineTo((x+3)*s,y*s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x*s,(y-3)*s); ctx.lineTo(x*s,(y+3)*s); ctx.stroke();
+    });
+    // cosmic eyes
+    _circleStroke(ctx, 23*s, 28*s, 4*s, '#2C3E7A', '#F9E79F', 1.5*s);
+    _circleStroke(ctx, 33*s, 28*s, 4*s, '#2C3E7A', '#F9E79F', 1.5*s);
+    _circle(ctx, 23*s, 28*s, 2*s, '#F9E79F');
+    _circle(ctx, 33*s, 28*s, 2*s, '#F9E79F');
+    // nebula core
+    _circle(ctx, 28*s, 28*s, 3*s, '#9B59B6');
   },
 };
 
