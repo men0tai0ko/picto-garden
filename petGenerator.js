@@ -37,16 +37,36 @@ function generateName() {
 
 /** ペット種類（typeIndex と encyclopediaFlags の順序に対応） */
 export const PET_TYPES = [
-  { id: 'dragon',  label: 'ドラゴン系', animClass: 'pet-anim-dragon',  statFocus: '攻撃',   description: '古代より伝わる幻の竜族。鋭い牙と爪で敵を圧倒する、攻撃特化の頂点捕食者。'               }, // 0
-  { id: 'bird',    label: '鳥類系',     animClass: 'pet-anim-bird',    statFocus: 'MP',     description: '風を読み、空を自在に舞う翼の使者。軽やかな動きでMPを活かした戦法を得意とする。'          }, // 1
-  { id: 'beast',   label: '野獣系',     animClass: 'pet-anim-beast',   statFocus: '攻撃・防御', description: '本能のままに荒野を駆ける猛獣。攻撃と防御を兼ね備えたバランス型の強敵。'              }, // 2
-  { id: 'slime',   label: 'スライム系', animClass: 'pet-anim-slime',   statFocus: 'HP',     description: 'どんな傷もゆっくり癒す粘質の体。打たれ強さとHPの高さで長期戦を制する。'                }, // 3
-  { id: 'spirit',  label: '精霊系',     animClass: 'pet-anim-spirit',  statFocus: 'MP',     description: '自然の力が宿る神秘的な存在。実体が薄く捉えがたいが、MPを源に不思議な力を発揮する。'     }, // 4
-  { id: 'aqua',    label: '水棲系',     animClass: 'pet-anim-aqua',    statFocus: 'HP・防御', description: '深海の静寂に生きる水の住人。頑強な体とHPで粘り強く戦い抜く。'                        }, // 5
-  { id: 'insect',  label: '昆虫系',     animClass: 'pet-anim-insect',  statFocus: '攻撃',   description: '鋭い顎と素早い羽ばたきで相手を翻弄する。攻撃力に特化した速攻型の戦士。'                }, // 6
-  { id: 'plant',   label: '植物系',     animClass: 'pet-anim-plant',   statFocus: 'HP',     description: '大地の養分をゆっくり蓄える緑の生命体。高いHPで嵐が過ぎるのをじっと待つ。'              }, // 7
-  { id: 'golem',   label: '岩石系',     animClass: 'pet-anim-golem',   statFocus: '防御',   description: '硬い外殻に守られた不動の要塞。防御力は全種中最高峰、崩すことはほぼ不可能。'             }, // 8
-  { id: 'phantom', label: '幻影系',     animClass: 'pet-anim-phantom', statFocus: 'MP',     description: '影と光の狭間に揺れる謎めいた幻。MPを糧に予測不能な動きで敵を惑わせる。'                }, // 9
+  { id: 'dragon',   label: 'ドラゴン系', animClass: 'pet-anim-dragon',  statFocus: '攻撃',      description: '古代より伝わる幻の竜族。鋭い牙と爪で敵を圧倒する、攻撃特化の頂点捕食者。'                       }, // 0
+  { id: 'bird',     label: '鳥類系',     animClass: 'pet-anim-bird',    statFocus: 'MP',        description: '風を読み、空を自在に舞う翼の使者。軽やかな動きで魔力を活かした戦法を得意とする。'               }, // 1
+  { id: 'beast',    label: '野獣系',     animClass: 'pet-anim-beast',   statFocus: '攻撃・防御', description: '本能のままに荒野を駆ける猛獣。攻撃と防御を兼ね備えたバランス型の強敵。'                         }, // 2
+  { id: 'slime',    label: 'スライム系', animClass: 'pet-anim-slime',   statFocus: 'HP',        description: 'どんな傷もゆっくり癒す粘質の体。打たれ強さと体力の高さで長期戦を制する。'                       }, // 3
+  { id: 'spirit',   label: '精霊系',     animClass: 'pet-anim-spirit',  statFocus: 'MP',        description: '自然の力が宿る神秘的な存在。実体が薄く捉えがたいが、魔力を源に不思議な力を発揮する。'            }, // 4
+  { id: 'aqua',     label: '水棲系',     animClass: 'pet-anim-aqua',    statFocus: 'HP・防御',  description: '深海の静寂に生きる水の住人。頑強な体と体力で粘り強く戦い抜く。'                               }, // 5
+  { id: 'insect',   label: '昆虫系',     animClass: 'pet-anim-insect',  statFocus: '攻撃',      description: '鋭い顎と素早い羽ばたきで相手を翻弄する。攻撃力に特化した速攻型の戦士。'                         }, // 6
+  { id: 'plant',    label: '植物系',     animClass: 'pet-anim-plant',   statFocus: 'HP',        description: '大地の養分をゆっくり蓄える緑の生命体。高い体力で嵐が過ぎるのをじっと待つ。'                     }, // 7
+  { id: 'golem',    label: '岩石系',     animClass: 'pet-anim-golem',   statFocus: '防御',      description: '硬い外殻に守られた不動の要塞。防御力は全種中最高峰、崩すことはほぼ不可能。'                      }, // 8
+  { id: 'phantom',  label: '幻影系',     animClass: 'pet-anim-phantom', statFocus: 'MP',        description: '影と光の狭間に揺れる謎めいた幻。魔力を糧に予測不能な動きで敵を惑わせる。'                       }, // 9
+  { id: 'demon',    label: '悪魔系',     animClass: 'pet-anim-dragon',  statFocus: '攻撃・MP',  description: '深淵から這い出た翼持つ悪鬼。高い魔力で呪いの力を振るう危険な存在。'                            }, // 10
+  { id: 'machine',  label: '機械系',     animClass: 'pet-anim-golem',   statFocus: '防御・攻撃', description: '精巧な歯車と鋼鉄の装甲で動く人工生命。感情はないが戦闘精度は折り紙付き。'                      }, // 11
+  { id: 'dragonoid',label: '竜人系',     animClass: 'pet-anim-beast',   statFocus: '攻撃・HP',  description: 'ドラゴンの血を引く二足歩行の戦士。力強い腕と鋭い爪で正面から敵を圧倒する。'                     }, // 12
+  { id: 'seagod',   label: '海神系',     animClass: 'pet-anim-aqua',    statFocus: 'HP・MP',    description: '古の海に眠る巨大な神獣。押し寄せる波のように敵をのみ込む圧倒的な存在感。'                       }, // 13
+  { id: 'flamebeast',label: '炎獣系',    animClass: 'pet-anim-beast',   statFocus: '攻撃',      description: '全身を業火で包んだ灼熱の猛獣。触れるものすべてを焼き尽くす攻撃の化身。'                         }, // 14
+  { id: 'icecrystal',label: '氷晶系',    animClass: 'pet-anim-spirit',  statFocus: '防御・MP',  description: '絶対零度の結晶体。外敵を凍てつかせる防御と冷静な判断力を持つ。魔力も高い。'                     }, // 15
+  { id: 'thunder',  label: '雷獣系',     animClass: 'pet-anim-insect',  statFocus: '攻撃・MP',  description: '嵐の夜に生まれた電光の獣。すさまじい速度で放たれる雷撃は回避不能。高い魔力が源。'               }, // 16
+  { id: 'earthdoll',label: '土偶系',     animClass: 'pet-anim-golem',   statFocus: 'HP・防御',  description: '大地の力を宿した古代の像。動きは鈍いが生命力と守りの固さは随一。'                              }, // 17
+  { id: 'kitsune',  label: '妖狐系',     animClass: 'pet-anim-phantom', statFocus: 'MP',        description: '千年の修行を積んだ狡猾な霊狐。変化の術と豊富な魔力で敵を幻惑する。'                            }, // 18
+  { id: 'giant',    label: '巨人系',     animClass: 'pet-anim-beast',   statFocus: 'HP・攻撃',  description: '山をも揺るがす膂力を持つ大型種。単純だが一撃の重さと体力は群を抜く。'                          }, // 19
+  { id: 'fungus',   label: '菌類系',     animClass: 'pet-anim-plant',   statFocus: 'HP・MP',    description: '暗所に群生する胞子の生命体。毒の胞子と体力の高さで消耗戦を得意とする。魔力も侮れない。'          }, // 20
+  { id: 'sandstorm',label: '砂塵系',     animClass: 'pet-anim-phantom', statFocus: 'MP',        description: '砂漠の嵐が意志を持った謎の存在。実体が曖昧で魔力を消費し形を自在に変える。'                     }, // 21
+  { id: 'abyss',    label: '深海系',     animClass: 'pet-anim-aqua',    statFocus: 'HP・防御',  description: '光も届かぬ深海で進化した異形。圧倒的な水圧に耐えた体は鉄壁の守りを誇る。'                       }, // 22
+  { id: 'samurai',  label: '鎧武者系',   animClass: 'pet-anim-golem',   statFocus: '防御・攻撃', description: '不滅の魂が宿った古の鎧。武士の誇りを胸に、守りと攻めの両立を極めた戦士。'                      }, // 23
+  { id: 'angel',    label: '天使系',     animClass: 'pet-anim-spirit',  statFocus: 'MP・HP',    description: '高天原より遣わされた光の使者。癒しの魔力と体力の高さで仲間を支える守護者。'                     }, // 24
+  { id: 'skeleton', label: '骸骨系',     animClass: 'pet-anim-beast',   statFocus: '攻撃',      description: '死してなお戦場を求める不死の戦士。骨だけの体は痛みを感じず攻撃に特化する。'                       }, // 25
+  { id: 'lava',     label: '溶岩系',     animClass: 'pet-anim-golem',   statFocus: '攻撃・防御', description: '火山の奥底で生まれた灼岩の塊。熱と硬さを兼ね備えた均衡型の強敵。'                             }, // 26
+  { id: 'windspirit',label: '風霊系',    animClass: 'pet-anim-spirit',  statFocus: 'MP',        description: '目に見えぬ気流が意志を持った存在。魔力を風に変換し、嵐のような連続技を放つ。'                   }, // 27
+  { id: 'beastman', label: '獣人系',     animClass: 'pet-anim-beast',   statFocus: '攻撃・HP',  description: '人と獣の力を併せ持つ混血の戦士。野性の本能と知性が融合した万能型の強者。'                       }, // 28
+  { id: 'starghost',label: '星霊系',     animClass: 'pet-anim-phantom', statFocus: 'MP・攻撃',  description: '夜空の星が降り注いだ宇宙の使者。神秘的な魔力と星の力で放つ一撃は絶大。'                         }, // 29
 ];
 
 /** 性格（輝度範囲・成長補正） */
@@ -110,10 +130,10 @@ const NEW_TYPE_THRESHOLDS = {
 
 // ===== 種類補正（事後ランダム補正） =====
 
-/** 画像由来のtypeIndexに対して40%の確率でランダム種類に補正する */
+/** 画像由来のtypeIndexに対して70%の確率でランダム種類に補正する（30種対応） */
 function adjustTypeIndex(baseTypeIndex) {
-  if (Math.random() < 0.40) {
-    return Math.floor(Math.random() * 10);
+  if (Math.random() < 0.70) {
+    return Math.floor(Math.random() * 30);
   }
   return baseTypeIndex;
 }
@@ -424,6 +444,26 @@ const TYPE_STAT_BONUS = [
   { hp: 15, mp:  0, attack:  0, defense:  0 }, // 7: 植物系
   { hp:  0, mp:  0, attack:  0, defense: 15 }, // 8: 岩石系
   { hp:  0, mp: 15, attack:  0, defense:  0 }, // 9: 幻影系
+  { hp:  0, mp:  8, attack:  7, defense:  0 }, // 10: 悪魔系
+  { hp:  0, mp:  0, attack:  7, defense:  8 }, // 11: 機械系
+  { hp:  7, mp:  0, attack:  8, defense:  0 }, // 12: 竜人系
+  { hp:  8, mp:  7, attack:  0, defense:  0 }, // 13: 海神系
+  { hp:  0, mp:  0, attack: 15, defense:  0 }, // 14: 炎獣系
+  { hp:  0, mp:  8, attack:  0, defense:  7 }, // 15: 氷晶系
+  { hp:  0, mp:  7, attack:  8, defense:  0 }, // 16: 雷獣系
+  { hp:  8, mp:  0, attack:  0, defense:  7 }, // 17: 土偶系
+  { hp:  0, mp: 15, attack:  0, defense:  0 }, // 18: 妖狐系
+  { hp:  8, mp:  0, attack:  7, defense:  0 }, // 19: 巨人系
+  { hp:  8, mp:  7, attack:  0, defense:  0 }, // 20: 菌類系
+  { hp:  0, mp: 15, attack:  0, defense:  0 }, // 21: 砂塵系
+  { hp:  8, mp:  0, attack:  0, defense:  7 }, // 22: 深海系
+  { hp:  0, mp:  0, attack:  7, defense:  8 }, // 23: 鎧武者系
+  { hp:  7, mp:  8, attack:  0, defense:  0 }, // 24: 天使系
+  { hp:  0, mp:  0, attack: 15, defense:  0 }, // 25: 骸骨系
+  { hp:  0, mp:  0, attack:  7, defense:  8 }, // 26: 溶岩系
+  { hp:  0, mp: 15, attack:  0, defense:  0 }, // 27: 風霊系
+  { hp:  7, mp:  0, attack:  8, defense:  0 }, // 28: 獣人系
+  { hp:  0, mp:  8, attack:  7, defense:  0 }, // 29: 星霊系
 ];
 
 /**
