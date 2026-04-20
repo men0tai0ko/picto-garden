@@ -116,6 +116,8 @@ function switchScreen(name) {
   panelOpenPetId = null;
   // 生成画面：庭スロット満杯警告
   if (name === 'generate') renderGenerateWarning();
+  // ケージ遷移時：データを最新化
+  if (name === 'cage') renderCage();
   // 庭の時刻帯演出：庭進入時に開始、離脱時に停止
   clearInterval(gardenTimeInterval);
   gardenTimeInterval = null;
@@ -756,7 +758,7 @@ async function showPetPanel(pet) {
     </div>
     ${statBar('満腹度', pet.hunger, 'hunger')}
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
-      <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px">🍖 餌 🪙${price}</button>
+      <button class="btn-primary" id="panel-feed-btn" style="padding:10px 20px;font-size:14px" ${user.currency < price ? 'disabled' : ''}>${user.currency < price ? '通貨不足' : `🍖 餌 🪙${price}`}</button>
       <button class="btn-primary" id="panel-water-btn" style="padding:10px 20px;font-size:14px;background:var(--color-mp)">💧 おみず</button>
     </div>
     <button id="panel-garden-btn" class="btn-primary" style="width:100%;margin-top:10px;font-size:14px;background:${inGarden ? 'var(--color-ground)' : gardenFull ? '#aaa' : 'var(--color-main)'}"
@@ -2760,7 +2762,7 @@ function showBreedResultOverlay(child) {
     <div>種族: <strong>${child.type}</strong></div>
     <div>性格: <strong>${child.personality}</strong></div>
     <div>属性: <strong>${child.attribute}</strong></div>
-    <div>レア度: <strong>${child.rarity}</strong></div>
+    <div>等級: <strong>${child.rarity}${{ '伝説':'★★★★★','英雄':'★★★★','希少':'★★★','高級':'★★','一般':'★' }[child.rarity] ?? ''}</strong></div>
     <div style="font-size:11px;color:var(--color-text-light)">体力 ${child.hp} / 魔力 ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
   `;
   overlay.classList.remove('hidden');
