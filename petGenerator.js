@@ -79,10 +79,10 @@ const INIT_STAT_MAX = 30;
 
 /** ノイズ（分散）によるレア度閾値 */
 const RARITY_THRESHOLDS = [
-  { min: 4000, label: '伝説' },
-  { min: 2500, label: '英雄' },
-  { min: 1500, label: '希少' },
-  { min:  500, label: '高級' },
+  { min: 6200, label: '伝説' },
+  { min: 4800, label: '英雄' },
+  { min: 3400, label: '希少' },
+  { min: 2500, label: '高級' },
   { min:    0, label: '一般' },
 ];
 
