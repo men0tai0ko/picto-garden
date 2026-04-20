@@ -386,6 +386,22 @@ async function renderCage() {
   updateEditBtn(btnEdit);
   btnEdit.classList.toggle('active', cageEditMode);
 
+  // 編集モード時：庭スロット残数をタイトル行横に表示
+  const titleRow = document.querySelector('#screen-cage .cage-title-row');
+  let slotInfo = document.getElementById('cage-slot-info');
+  if (cageEditMode && titleRow) {
+    if (!slotInfo) {
+      slotInfo = document.createElement('span');
+      slotInfo.id = 'cage-slot-info';
+      slotInfo.style.cssText = 'margin-left:auto;font-size:12px;color:var(--color-text-light)';
+      titleRow.appendChild(slotInfo);
+    }
+    const remaining = user.gardenSlots - user.gardenPetIds.length;
+    slotInfo.textContent = `庭: ${user.gardenPetIds.length}/${user.gardenSlots}（残${remaining}）`;
+  } else if (slotInfo) {
+    slotInfo.remove();
+  }
+
   // イベントは毎回上書きで登録（onclick使用）
   btnGenerate.onclick = () => {
     switchScreen('generate');
@@ -1541,6 +1557,9 @@ async function renderBattle() {
       <button id="battle-start-btn" class="btn-primary" style="width:100%;margin-top:10px"${canBlock ? ' disabled' : ''}>
         ⚔️ 訓練開始
       </button>
+      <div style="font-size:12px;color:${affinityColor};text-align:center;margin-top:6px">
+        敵属性: ${enemyAttr} &nbsp;${affinityLabel}
+      </div>
     </div>
   `;
 
@@ -1815,6 +1834,23 @@ async function executeBattle() {
     await sleep(LOG_RESULT_DELAY_MS);
 
     // HP0で次戦不可になる場合はループ先頭のチェックで検出
+  }
+
+  // セッション小計行（1戦以上実施した場合のみ）
+  if (battleCount > 0) {
+    const wins = battleState.session.wins;
+    const losses = battleCount - wins;
+    // 連勝数を計算（末尾から連続した勝利数）
+    const list = battleState.session.battlesList;
+    let streak = 0;
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].won) streak++;
+      else break;
+    }
+    const streakText = streak >= 2 ? ` / 現在${streak}連勝🔥` : '';
+    const summary = `── 小計：${battleCount}戦 ${wins}勝${losses}敗${streakText} ──`;
+    appendLog(log, summary, 'var(--color-accent)');
+    appendLogDOM(modalLog, summary, 'var(--color-accent)');
   }
 
   if (battleState.aborted) stopReason = 'aborted';
@@ -2875,6 +2911,19 @@ async function renderEncyclopedia() {
 
   const user = await getUser();
   const pets = await getAllPets();
+
+  // ヘッダーに解放済み種数カウンターを表示
+  const screenEnc = document.getElementById('screen-encyclopedia');
+  let counter = document.getElementById('encyclopedia-counter');
+  if (!counter) {
+    counter = document.createElement('p');
+    counter.id = 'encyclopedia-counter';
+    counter.style.cssText = 'font-size:12px;color:var(--color-text-light);text-align:right;padding:0 16px 4px;margin:0';
+    const title = screenEnc.querySelector('.screen-title');
+    if (title) title.after(counter);
+  }
+  const unlockedCount = user.encyclopediaFlags.filter(Boolean).length;
+  counter.textContent = `${unlockedCount} / ${PET_TYPES.length} 解放済み`;
 
   PET_TYPES.forEach((type, idx) => {
     const unlocked = user.encyclopediaFlags[idx];
