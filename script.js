@@ -386,8 +386,7 @@ async function renderCage() {
   updateEditBtn(btnEdit);
   btnEdit.classList.toggle('active', cageEditMode);
 
-  // 編集モード時：庭スロット残数をタイトル行横に表示
-  const titleRow = document.querySelector('#screen-cage .cage-title-row');
+  // 編集モード時：庭スロット残数をタイトル行横に表示（titleRowは関数冒頭で宣言済み）
   let slotInfo = document.getElementById('cage-slot-info');
   if (cageEditMode && titleRow) {
     if (!slotInfo) {
