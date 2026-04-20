@@ -152,6 +152,30 @@
 
 | # | 提案 | 優先度 | 理由 |
 |---|------|--------|------|
+| 1 | `wrapWithGenerationBadge` 内の `if (generation >= 2)` 二重チェックを除去 | 中 | 軽微調整 |
+| 2 | `onGardenPointerUp` no-op 関数を削除 | 低 | 軽微調整 |
+| 3 | `showBreedOverlay` で3体目選択試行時にインライン「2体まで」メッセージ表示（現在は無反応） | 中 | 使い勝手向上 |
+| 4 | 庭アイテム長押し削除（600ms）開始時に枠色変化で視覚フィードバックを追加 | 中 | UX改善 |
+| 5 | ケージ0体時に「＋ 生成」ボタン背景色を `--color-accent` に変更して導線を強調 | 中 | 使い勝手向上 |
+| 6 | `renderShop` で `maxQty:1` 購入済み建物カードに「購入済み」ラベル表示＋購入ボタン `disabled` 化 | 中 | 使い勝手向上 |
+| 7 | 放置収益発生時に庭画面在中なら `+N🪙` トーストを1〜2秒表示 | 低 | UX改善 |
+| 8 | `HUNGER_INTERVAL_MS` 定数コメントに spec 参照（§番号）を追記 | 低 | バグ予防 |
+| 9 | `showBreedOverlay` の `render()` 内 `getAllPets()` 呼び出しを呼び出し元から引数渡しに変更しDB重複読み取りを削減 | 低 | 軽微調整 |
+| 10 | ショップカードで `user.currency < item.price` 時に「通貨不足」ラベルを表示（現在は `disabled` のみで理由が不明） | 中 | 使い勝手向上 |
+| 11 | `renderBattle` で `canBlock` 非null時に給餌・水あげボタン以外も `disabled` 化（現在は訓練開始ボタンのみ） | 中 | 使い勝手向上 |
+| 12 | 満腹度タイマーの `showPetPanel` 再描画前に `panel.classList.contains('open')` チェックを追加し画面切替後の誤 open を防止 | 中 | バグ予防 |
+| 13 | `showGeneratedOverlay` の `imgEl.onload = () => {}` が空関数で BlobURL が `closeGenerated` 以外の経路でリークする可能性 → キャンセルやオーバーレイ非表示時にも `revokeObjectURL` を呼ぶよう修正 | 中 | バグ予防 |
+| 14 | ペット名バリデーション失敗時（`NAME_PATTERN` 不一致）に入力欄を赤枠で視覚フィードバック（現在は無音で元の名前に戻るのみ） | 中 | 使い勝手向上 |
+| 15 | `renderBattle` のペット選択・難易度変更ごとに全画面 `innerHTML` クリアせず、差分更新範囲を最小化してスクロール退避コードを削減 | 中 | UX改善 |
+| 16 | `switchScreen` に `screen-battle` の `body.classList.toggle` 追加（`screen-cage` / `screen-garden` 等は対応済みだが `screen-battle` が未対応） | 低 | バグ予防 |
+| 17 | `showLevelUpOverlay` に背景タップ閉じ（`overlay.onclick`）を追加（他overlayには実装済みだが未対応） | 低 | 軽微調整 |
+| 18 | `renderGarden` の `for...of` ループ内 `getPet` を `Promise.all` 化して並列取得に変更 | 低 | 軽微調整 |
+| 19 | `showEvictDialog` の `getAllPets()` 呼び出しを呼び出し元から引数渡しに変更し DB 二重読み取りを削減 | 低 | 軽微調整 |
+| 20 | `RANDOM_PET_NAMES` の送り仮名欠落を修正（例：「やさしイワ」→「やさしいイワ」、「かわいクモ」→「かわいいクモ」） | 低 | 軽微調整 |
+| 21 | `wrapWithGenerationBadge` の `badge.style.background = '#FFD700'` をインラインからCSS変数 `--color-accent` に統一 | 低 | 軽微調整 |
+| 22 | `initGenerateScreen` の画像ファイルタイプ判定を `['image/jpeg','image/png','image/gif','image/webp']` で明示チェックに変更 | 低 | バグ予防 |
+| 23 | `waterPet` の戻り値を `{ ok: boolean }` に変更し `feedPet` と統一してエラーハンドリングを可能にする | 低 | バグ予防 |
+| 24 | `overlay-battle-log` / `overlay-battle-result` の再利用判定コメントを追記（初回のみ `createElement`・以降は再利用の動作を明示） | 低 | 軽微調整 |
 
 ---
 
@@ -159,6 +183,13 @@
 
 | 提案 |
 |------|
+| 訓練開始ボタンを満腹度0 / HP0時に `disabled` 化＋ボタン直下に理由テキスト表示 |
+| 繁殖overlayの「繁殖！」ボタンを通貨不足時に `disabled` ＋不足額インライン表示 |
+| 庭パネルの「おみず」ボタンを水やり後 `btn.disabled = false` で再有効化 |
+| `showBreedResultOverlay` 繁殖結果に世代（N世）表示を追加 |
+| `feedPet` に `applyGain('hp')` / `applyGain('mp')` を追加（HP/MPが餌で成長しなかったバグ修正） |
+| 訓練結果overlayを0戦中断時も表示（「0戦（中断）」タイトル） |
+| `showPetPanel` の世代バッジ条件を `generation >= 2` に修正（`wrapWithGenerationBadge` と統一） |
 | 庭パネルに「餌をあげる」ボタンを追加 |
 | 空腹度を時間経過で減少させる |
 | ケージカードに現HPバーを表示 |
