@@ -77,6 +77,9 @@ export const ATTRIBUTES = ['火', '水', '草', '闇', '光'];
 const INIT_STAT_MIN = 10;
 const INIT_STAT_MAX = 30;
 
+/** デバッグ：trueにすると生成完了overlay分散値を表示 */
+const DEBUG_RARITY = false;
+
 /** ノイズ（分散）によるレア度閾値 */
 const RARITY_THRESHOLDS = [
   { min: 6200, label: '伝説' },
@@ -250,6 +253,8 @@ export function analyzeRarity(pixels) {
   }
   const mean     = luminances.reduce((a, b) => a + b, 0) / luminances.length;
   const variance = luminances.reduce((a, b) => a + (b - mean) ** 2, 0) / luminances.length;
+
+  if (DEBUG_RARITY) console.log(`[DEBUG_RARITY] variance=${variance.toFixed(1)}`);
 
   for (const t of RARITY_THRESHOLDS) {
     if (variance >= t.min) return t.label;

@@ -502,8 +502,25 @@ async function showEvictDialog(user, incomingPetId, incomingCard) {
     info.textContent = pet.type;
 
     const sub = document.createElement('div');
-    sub.style.cssText = 'font-size:10px;color:var(--color-text-light)';
-    sub.textContent = `体力 ${pet.hp} / 満腹 ${pet.hunger}`;
+    sub.style.cssText = 'font-size:10px;color:var(--color-text-light);margin-top:2px';
+    const hpPct  = Math.min(100, Math.max(0, (pet.hp  / (pet.statCaps?.hp  ?? 100)) * 100)).toFixed(0);
+    const hgPct  = Math.min(100, Math.max(0, pet.hunger)).toFixed(0);
+    sub.innerHTML = `
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px">
+        <span style="width:24px">体力</span>
+        <div style="flex:1;height:4px;background:rgba(0,0,0,0.08);border-radius:2px">
+          <div style="width:${hpPct}%;height:100%;background:var(--color-hp);border-radius:2px"></div>
+        </div>
+        <span style="width:20px;text-align:right">${pet.hp}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="width:24px">満腹</span>
+        <div style="flex:1;height:4px;background:rgba(0,0,0,0.08);border-radius:2px">
+          <div style="width:${hgPct}%;height:100%;background:var(--color-accent);border-radius:2px"></div>
+        </div>
+        <span style="width:20px;text-align:right">${pet.hunger}</span>
+      </div>
+    `;
     info.appendChild(sub);
 
     row.append(canvas, info);
@@ -707,6 +724,33 @@ async function renderGarden() {
     petWrapper.append(wrapWithGenerationBadge(canvas, pet.generation ?? 0), nameLabel);
     petsArea.appendChild(petWrapper);
   }
+
+  // 庭在中ペットに空腹度0がいれば庭ナビアイコンに⚠️バッジ表示
+  updateGardenNavBadge();
+}
+
+/** 庭ナビボタンの⚠️バッジを空腹度0ペットの有無に応じて更新 */
+async function updateGardenNavBadge() {
+  const navBtn = document.querySelector('.nav-btn[data-screen="garden"]');
+  if (!navBtn) return;
+  const user = await getUser();
+  const allPets = await getAllPets();
+  const hasHungry = user.gardenPetIds.some(id => {
+    const p = allPets.find(p => p.id === id);
+    return p && p.hunger <= 0;
+  });
+  let badge = navBtn.querySelector('.nav-hunger-badge');
+  if (hasHungry) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'nav-hunger-badge';
+      badge.textContent = '⚠️';
+      navBtn.style.position = 'relative';
+      navBtn.appendChild(badge);
+    }
+  } else {
+    if (badge) badge.remove();
+  }
 }
 
 // ===== 下部パネル（庭ペットタップ時） =====
@@ -765,6 +809,7 @@ async function showPetPanel(pet) {
       ${gardenFull ? 'disabled' : ''}>
       ${inGarden ? '🏡 庭から外す' : gardenFull ? '🌿 庭がいっぱい' : '🌿 庭に出す'}
     </button>
+    ${inGarden ? '' : `<button id="panel-release-btn" class="btn-primary" style="width:100%;margin-top:6px;font-size:13px;background:rgba(232,84,84,0.12);color:var(--color-hp)">🌿 野に放つ</button>`}
   `;
 
   panel.classList.remove('hidden');
@@ -889,6 +934,17 @@ async function showPetPanel(pet) {
     panel.classList.add('hidden');
     panelOpenPetId = null;
   };
+
+  // 野に放つボタン（庭に出ていないペットのみ表示）
+  const releaseBtn = document.getElementById('panel-release-btn');
+  if (releaseBtn) {
+    releaseBtn.addEventListener('click', () => {
+      panel.classList.remove('open');
+      panel.classList.add('hidden');
+      panelOpenPetId = null;
+      showReleaseConfirmDialog([pet.id]);
+    });
+  }
 }
 
 // ===== 満腹度時間経過減少（tasks.md 改善提案・仕様#8） =====
@@ -949,6 +1005,8 @@ function startHungerTimer() {
           if (card) updateCageCard(card, pet, user2);
         }
       }
+      // 庭ナビバッジを満腹度変化に合わせて更新
+      await updateGardenNavBadge();
     } catch (err) {
       console.error('満腹度タイマーエラー:', err);
     }

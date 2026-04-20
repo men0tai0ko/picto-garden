@@ -896,6 +896,13 @@ body.screen-generate #generate-footer-cancel { display: flex; }
 }
 .nav-btn span { font-size: 10px; font-weight: 600; }
 .nav-btn.active { color: var(--color-main); }
+.nav-hunger-badge {
+  position: absolute;
+  top: 2px; right: 4px;
+  font-size: 9px;
+  line-height: 1;
+  pointer-events: none;
+}
 
 /* ===== 進化フレーム枠 ===== */
 .evo-stage-1 { box-shadow: 0 0 0 3px var(--color-evo-stage1); }
