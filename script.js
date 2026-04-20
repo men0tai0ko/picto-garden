@@ -434,7 +434,7 @@ function updateCageCard(card, pet, user) {
   if (nameEl) nameEl.textContent = pet.name ?? pet.type;
   // 給餌ボタン価格も更新
   const feedBtn = card.querySelector('[data-cage-feedbtn]');
-  if (feedBtn) feedBtn.textContent = `🍖 餌 🪙${10 * user.level}`;
+  if (feedBtn) feedBtn.textContent = `🍖 餌 🪙${10 * Math.max(1, user.level)}`;
   // ペット画像を進化後BlobURLで更新
   const imgEl = card.querySelector('img');
   if (imgEl && pet.imageData) {
@@ -789,7 +789,7 @@ async function showPetPanel(pet) {
   panelOpenPetId = pet.id;
 
   const user  = await getUser();
-  const price = 10 * user.level;
+  const price = 10 * Math.max(1, user.level);
 
   const inGarden   = user.gardenPetIds.includes(pet.id);
   const gardenFull = !inGarden && user.gardenPetIds.length >= user.gardenSlots;
@@ -952,15 +952,19 @@ async function showPetPanel(pet) {
     panelOpenPetId = null;
   };
 
-  // 野に放つボタン（庭に出ていないペットのみ表示）
+  // 野に放つボタン（庭に出ていないペットのみ表示・訓練画面中は非表示）
   const releaseBtn = document.getElementById('panel-release-btn');
   if (releaseBtn) {
-    releaseBtn.addEventListener('click', () => {
-      panel.classList.remove('open');
-      panel.classList.add('hidden');
-      panelOpenPetId = null;
-      showReleaseConfirmDialog([pet.id]);
-    });
+    if (document.body.classList.contains('screen-battle')) {
+      releaseBtn.hidden = true;
+    } else {
+      releaseBtn.addEventListener('click', () => {
+        panel.classList.remove('open');
+        panel.classList.add('hidden');
+        panelOpenPetId = null;
+        showReleaseConfirmDialog([pet.id]);
+      });
+    }
   }
 }
 
@@ -1002,7 +1006,7 @@ function startHungerTimer() {
         return pet && pet.hunger > 0;
       }).length;
       if (activeCount > 0) {
-        const gain = Math.min(IDLE_INCOME_CAP, activeCount * user.level * IDLE_INCOME_PER_PET);
+        const gain = Math.min(IDLE_INCOME_CAP, activeCount * Math.max(1, user.level) * IDLE_INCOME_PER_PET);
         await earnCurrency(gain);
         await renderStatusBar();
       }
@@ -1317,7 +1321,7 @@ function calcStatGain(current, bonusStat, bonusMult, rarityGrowthProb = RARE_GRO
  */
 async function feedPet(pet) {
   const user  = await getUser();
-  const price = 10 * user.level;
+  const price = 10 * Math.max(1, user.level);
 
   const { ok } = await spendCurrency(price);
   if (!ok) return { ok: false, message: `通貨が足りません（必要: 🪙${price}）` };
@@ -1563,7 +1567,7 @@ async function renderBattle() {
     </div>
   `;
 
-  const price = 10 * user.level;
+  const price = 10 * Math.max(1, user.level);
   const statusHTML = `
     <div style="background:var(--color-white);border-radius:var(--radius-card);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -2092,10 +2096,13 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
   broLog.scrollTop = broLog.scrollHeight;
 
   overlay.classList.remove('hidden');
-  document.getElementById('battle-result-ok-btn').onclick = () => {
+  const closeBattleResult = () => {
     overlay.classList.add('hidden');
+    battleState.session = null;
+    battleState.log = [];
   };
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.add('hidden'); };
+  document.getElementById('battle-result-ok-btn').onclick = closeBattleResult;
+  overlay.onclick = (e) => { if (e.target === overlay) closeBattleResult(); };
 }
 
 // ===== T5：レベルアップ演出オーバーレイ =====
@@ -2506,7 +2513,10 @@ function toggleReleaseSelect(id) {
 async function showReleaseConfirmDialog(ids) {
   const allPets = await getAllPets();
   const targets = allPets.filter(p => ids.includes(p.id));
-  if (targets.length === 0) return;
+  if (targets.length === 0) {
+    console.warn('[showReleaseConfirmDialog] 対象ペットが見つかりません:', ids);
+    return;
+  }
 
   let overlay = document.getElementById('overlay-release-confirm');
   if (!overlay) {
@@ -2575,7 +2585,7 @@ async function _renderBreedArea() {
   if (!area) return;
   const pets = (await getAllPets()).filter(p => (p.evolutionStage ?? 0) >= BREED_EVOLUTION_MIN);
   const user = await getUser();
-  const cost = BREED_COST_MULTIPLIER * user.level;
+  const cost = BREED_COST_MULTIPLIER * Math.max(1, user.level);
 
   area.innerHTML = `
     <p style="font-size:12px;color:var(--color-text-light);padding:0 16px;margin-bottom:10px">
@@ -2673,7 +2683,7 @@ async function _execBreed() {
   }
 
   const user = await getUser();
-  const cost = BREED_COST_MULTIPLIER * user.level;
+  const cost = BREED_COST_MULTIPLIER * Math.max(1, user.level);
   const { ok } = await spendCurrency(cost);
   if (!ok) {
     const area = document.getElementById('breed-area');
@@ -2920,7 +2930,11 @@ async function renderEncyclopedia() {
     counter.id = 'encyclopedia-counter';
     counter.style.cssText = 'font-size:12px;color:var(--color-text-light);text-align:right;padding:0 16px 4px;margin:0';
     const title = screenEnc.querySelector('.screen-title');
-    if (title) title.after(counter);
+    if (title) {
+      title.after(counter);
+    } else {
+      screenEnc.insertBefore(counter, grid);
+    }
   }
   const unlockedCount = user.encyclopediaFlags.filter(Boolean).length;
   counter.textContent = `${unlockedCount} / ${PET_TYPES.length} 解放済み`;
