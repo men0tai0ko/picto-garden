@@ -2942,7 +2942,11 @@ async function renderEncyclopedia() {
   // フィルタ状態取得
   const activeFilter = document.querySelector('.enc-filter-btn.active')?.dataset.filter ?? 'all';
 
-  PET_TYPES.forEach((type, idx) => {
+  // 確率の高い順に表示（typeIndexは変えずに表示順のみ制御）
+  const DISPLAY_ORDER = [7,4,0,2,3,1,5,6,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29];
+
+  DISPLAY_ORDER.forEach(idx => {
+    const type    = PET_TYPES[idx];
     const unlocked  = user.encyclopediaFlags[idx];
 
     // フィルタ適用
