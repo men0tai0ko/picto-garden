@@ -37,16 +37,16 @@ function generateName() {
 
 /** ペット種類（typeIndex と encyclopediaFlags の順序に対応） */
 export const PET_TYPES = [
-  { id: 'dragon',  label: 'ドラゴン系', animClass: 'pet-anim-dragon'  }, // 0
-  { id: 'bird',    label: '鳥類系',     animClass: 'pet-anim-bird'    }, // 1
-  { id: 'beast',   label: '野獣系',     animClass: 'pet-anim-beast'   }, // 2
-  { id: 'slime',   label: 'スライム系', animClass: 'pet-anim-slime'   }, // 3
-  { id: 'spirit',  label: '精霊系',     animClass: 'pet-anim-spirit'  }, // 4
-  { id: 'aqua',    label: '水棲系',     animClass: 'pet-anim-aqua'    }, // 5
-  { id: 'insect',  label: '昆虫系',     animClass: 'pet-anim-insect'  }, // 6
-  { id: 'plant',   label: '植物系',     animClass: 'pet-anim-plant'   }, // 7
-  { id: 'golem',   label: '岩石系',     animClass: 'pet-anim-golem'   }, // 8
-  { id: 'phantom', label: '幻影系',     animClass: 'pet-anim-phantom' }, // 9
+  { id: 'dragon',  label: 'ドラゴン系', animClass: 'pet-anim-dragon',  statFocus: '攻撃',   description: '古代より伝わる幻の竜族。鋭い牙と爪で敵を圧倒する、攻撃特化の頂点捕食者。'               }, // 0
+  { id: 'bird',    label: '鳥類系',     animClass: 'pet-anim-bird',    statFocus: 'MP',     description: '風を読み、空を自在に舞う翼の使者。軽やかな動きでMPを活かした戦法を得意とする。'          }, // 1
+  { id: 'beast',   label: '野獣系',     animClass: 'pet-anim-beast',   statFocus: '攻撃・防御', description: '本能のままに荒野を駆ける猛獣。攻撃と防御を兼ね備えたバランス型の強敵。'              }, // 2
+  { id: 'slime',   label: 'スライム系', animClass: 'pet-anim-slime',   statFocus: 'HP',     description: 'どんな傷もゆっくり癒す粘質の体。打たれ強さとHPの高さで長期戦を制する。'                }, // 3
+  { id: 'spirit',  label: '精霊系',     animClass: 'pet-anim-spirit',  statFocus: 'MP',     description: '自然の力が宿る神秘的な存在。実体が薄く捉えがたいが、MPを源に不思議な力を発揮する。'     }, // 4
+  { id: 'aqua',    label: '水棲系',     animClass: 'pet-anim-aqua',    statFocus: 'HP・防御', description: '深海の静寂に生きる水の住人。頑強な体とHPで粘り強く戦い抜く。'                        }, // 5
+  { id: 'insect',  label: '昆虫系',     animClass: 'pet-anim-insect',  statFocus: '攻撃',   description: '鋭い顎と素早い羽ばたきで相手を翻弄する。攻撃力に特化した速攻型の戦士。'                }, // 6
+  { id: 'plant',   label: '植物系',     animClass: 'pet-anim-plant',   statFocus: 'HP',     description: '大地の養分をゆっくり蓄える緑の生命体。高いHPで嵐が過ぎるのをじっと待つ。'              }, // 7
+  { id: 'golem',   label: '岩石系',     animClass: 'pet-anim-golem',   statFocus: '防御',   description: '硬い外殻に守られた不動の要塞。防御力は全種中最高峰、崩すことはほぼ不可能。'             }, // 8
+  { id: 'phantom', label: '幻影系',     animClass: 'pet-anim-phantom', statFocus: 'MP',     description: '影と光の狭間に揺れる謎めいた幻。MPを糧に予測不能な動きで敵を惑わせる。'                }, // 9
 ];
 
 /** 性格（輝度範囲・成長補正） */

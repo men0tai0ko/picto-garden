@@ -2928,9 +2928,9 @@ async function renderEncyclopedia() {
     counter = document.createElement('p');
     counter.id = 'encyclopedia-counter';
     counter.style.cssText = 'font-size:12px;color:var(--color-text-light);text-align:right;padding:0 16px 4px;margin:0';
-    const title = screenEnc.querySelector('.screen-title');
-    if (title) {
-      title.after(counter);
+    const filterTabs = document.getElementById('enc-filter-tabs');
+    if (filterTabs) {
+      filterTabs.after(counter);
     } else {
       screenEnc.insertBefore(counter, grid);
     }
@@ -2938,14 +2938,25 @@ async function renderEncyclopedia() {
   const unlockedCount = user.encyclopediaFlags.filter(Boolean).length;
   counter.textContent = `${unlockedCount} / ${PET_TYPES.length} 解放済み`;
 
+  // フィルタ状態取得
+  const activeFilter = document.querySelector('.enc-filter-btn.active')?.dataset.filter ?? 'all';
+
   PET_TYPES.forEach((type, idx) => {
-    const unlocked = user.encyclopediaFlags[idx];
-    const item     = document.createElement('div');
+    const unlocked  = user.encyclopediaFlags[idx];
+
+    // フィルタ適用
+    if (activeFilter === 'unlocked' && !unlocked) return;
+    if (activeFilter === 'locked'   &&  unlocked) return;
+
+    const item = document.createElement('div');
     item.className = `enc-item${unlocked ? ' unlocked' : ''}`;
 
-    const canvas   = document.createElement('canvas');
-    canvas.width   = 56;
-    canvas.height  = 56;
+    const canvas = document.createElement('canvas');
+    canvas.width  = 56;
+    canvas.height = 56;
+
+    // 所持数カウント
+    const ownedCount = pets.filter(p => p.typeIndex === idx).length;
 
     if (unlocked) {
       // 解放済み：最初に見つかったPetの画像を表示
@@ -2975,11 +2986,96 @@ async function renderEncyclopedia() {
       ctx.fillText('?', 28, 28);
     }
 
-    const nameEl     = document.createElement('div');
+    // アイコンラップ（バッジ用）
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'enc-icon-wrap';
+    iconWrap.appendChild(canvas);
+
+    // 所持数バッジ（解放済み・1体以上のみ）
+    if (unlocked && ownedCount > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'enc-count-badge';
+      badge.textContent = `×${ownedCount}`;
+      iconWrap.appendChild(badge);
+    }
+
+    const nameEl = document.createElement('div');
     nameEl.className = 'enc-item-name';
     nameEl.textContent = unlocked ? type.label : '???';
 
-    item.append(canvas, nameEl);
+    item.append(iconWrap, nameEl);
+
+    // 解放済みのみタップで詳細表示
+    if (unlocked) {
+      item.addEventListener('click', () => showEncyclopediaDetail(type, idx, pets));
+    }
+
     grid.appendChild(item);
   });
+
+  // フィルタタブのイベント設定（初回のみ）
+  if (!document.getElementById('enc-filter-tabs').dataset.initialized) {
+    document.getElementById('enc-filter-tabs').dataset.initialized = '1';
+    document.querySelectorAll('.enc-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.enc-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderEncyclopedia();
+      });
+    });
+  }
+
+  // 詳細overlayの閉じるボタン（初回のみ）
+  const closeBtn = document.getElementById('enc-detail-close-btn');
+  if (closeBtn && !closeBtn.dataset.initialized) {
+    closeBtn.dataset.initialized = '1';
+    closeBtn.addEventListener('click', () => {
+      document.getElementById('overlay-encyclopedia').classList.add('hidden');
+    });
+    document.getElementById('overlay-encyclopedia').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('overlay-encyclopedia')) {
+        document.getElementById('overlay-encyclopedia').classList.add('hidden');
+      }
+    });
+  }
+}
+
+/**
+ * 図鑑詳細オーバーレイを表示する
+ * @param {object} type - PET_TYPESエントリ
+ * @param {number} idx  - typeIndex
+ * @param {Pet[]}  pets - 全ペット配列
+ */
+function showEncyclopediaDetail(type, idx, pets) {
+  const overlay = document.getElementById('overlay-encyclopedia');
+
+  // 名前・得意ステータス・フレーバーテキスト
+  document.getElementById('enc-detail-name').textContent      = type.label;
+  document.getElementById('enc-detail-stat-focus').textContent = `得意：${type.statFocus}`;
+  document.getElementById('enc-detail-description').textContent = type.description;
+
+  // 所持数
+  const ownedCount = pets.filter(p => p.typeIndex === idx).length;
+  document.getElementById('enc-detail-count').textContent = `所持数：${ownedCount}体`;
+
+  // 代表ペット画像をcanvasに描画
+  const detailCanvas = document.getElementById('enc-detail-canvas');
+  const ctx = detailCanvas.getContext('2d');
+  ctx.clearRect(0, 0, 72, 72);
+
+  const matchPet = pets.find(p => p.typeIndex === idx);
+  if (matchPet) {
+    const img = new Image();
+    const url = URL.createObjectURL(matchPet.imageData);
+    img.onload = () => {
+      ctx.beginPath();
+      ctx.roundRect(0, 0, 72, 72, 14);
+      ctx.clip();
+      ctx.drawImage(img, 0, 0, 72, 72);
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
+
+  overlay.classList.remove('hidden');
 }

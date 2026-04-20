@@ -72,6 +72,11 @@
     <!-- 図鑑 -->
     <section id="screen-encyclopedia" class="screen">
       <h2 class="screen-title">図鑑</h2>
+      <div id="enc-filter-tabs">
+        <button class="enc-filter-btn active" data-filter="all">すべて</button>
+        <button class="enc-filter-btn" data-filter="unlocked">解放済み</button>
+        <button class="enc-filter-btn" data-filter="locked">未解放</button>
+      </div>
       <div id="encyclopedia-grid"></div>
     </section>
 
@@ -105,6 +110,22 @@
       <h3>✨ ペット誕生！</h3>
       <div id="overlay-pet-info"></div>
       <button class="btn-primary" id="overlay-ok-btn">ケージへ</button>
+    </div>
+  </div>
+
+  <!-- 図鑑詳細オーバーレイ -->
+  <div id="overlay-encyclopedia" class="overlay hidden">
+    <div class="overlay-card">
+      <div id="enc-detail-header">
+        <canvas id="enc-detail-canvas" width="72" height="72"></canvas>
+        <div id="enc-detail-title">
+          <h3 id="enc-detail-name"></h3>
+          <span id="enc-detail-stat-focus"></span>
+        </div>
+      </div>
+      <p id="enc-detail-description"></p>
+      <p id="enc-detail-count"></p>
+      <button class="btn-primary" id="enc-detail-close-btn">閉じる</button>
     </div>
   </div>
 
