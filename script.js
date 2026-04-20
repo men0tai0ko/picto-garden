@@ -2959,27 +2959,13 @@ async function renderEncyclopedia() {
     const ownedCount = pets.filter(p => p.typeIndex === idx).length;
 
     if (unlocked) {
-      // 解放済み：最初に見つかったPetの画像を表示
-      const matchPet = pets.find(p => p.typeIndex === idx);
-      if (matchPet) {
-        const img = new Image();
-        const url = URL.createObjectURL(matchPet.imageData);
-        img.onload = () => {
-          const ctx = canvas.getContext('2d');
-          ctx.beginPath();
-          ctx.roundRect(0, 0, 56, 56, 12);
-          ctx.clip();
-          ctx.drawImage(img, 0, 0, 56, 56);
-          URL.revokeObjectURL(url);
-        };
-        img.src = url;
-      }
+      drawEncIcon(canvas.getContext('2d'), type.id, 56);
     } else {
       // 未解放：シルエット（黒塗り）
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#333';
       ctx.fillRect(0, 0, 56, 56);
-      ctx.fillStyle = '#222';
+      ctx.fillStyle = '#555';
       ctx.font = '28px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -3058,24 +3044,289 @@ function showEncyclopediaDetail(type, idx, pets) {
   const ownedCount = pets.filter(p => p.typeIndex === idx).length;
   document.getElementById('enc-detail-count').textContent = `所持数：${ownedCount}体`;
 
-  // 代表ペット画像をcanvasに描画
+  // 種類アイコンをcanvasに描画
   const detailCanvas = document.getElementById('enc-detail-canvas');
   const ctx = detailCanvas.getContext('2d');
   ctx.clearRect(0, 0, 72, 72);
-
-  const matchPet = pets.find(p => p.typeIndex === idx);
-  if (matchPet) {
-    const img = new Image();
-    const url = URL.createObjectURL(matchPet.imageData);
-    img.onload = () => {
-      ctx.beginPath();
-      ctx.roundRect(0, 0, 72, 72, 14);
-      ctx.clip();
-      ctx.drawImage(img, 0, 0, 72, 72);
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  }
+  drawEncIcon(ctx, type.id, 72);
 
   overlay.classList.remove('hidden');
+}
+
+/**
+ * 図鑑用種類アイコンをCanvasに描画する
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {string} typeId - PET_TYPESのid
+ * @param {number} size   - 描画サイズ（56 or 72）
+ */
+function drawEncIcon(ctx, typeId, size) {
+  const s = size / 56; // スケール係数（56px基準）
+
+  // 角丸クリップ
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(0, 0, size, size, 12 * s);
+  ctx.clip();
+
+  const draw = ENC_ICON_DRAWERS[typeId];
+  if (draw) {
+    draw(ctx, s);
+  } else {
+    ctx.fillStyle = '#444';
+    ctx.fillRect(0, 0, size, size);
+  }
+
+  ctx.restore();
+}
+
+/** 種類別アイコン描画関数テーブル */
+const ENC_ICON_DRAWERS = {
+
+  dragon(ctx, s) {
+    ctx.fillStyle = '#C0392B';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body
+    _ellipseStroke(ctx, 28*s, 35*s, 13*s, 9*s, '#E74C3C', '#FADBD8', 1.2*s);
+    // neck
+    _rectStroke(ctx, 23*s, 21*s, 10*s, 15*s, 5*s, '#E74C3C', '#FADBD8', 1.2*s);
+    // head
+    _ellipseStroke(ctx, 28*s, 18*s, 9*s, 7*s, '#E74C3C', '#FADBD8', 1.2*s);
+    // horns
+    _polyStroke(ctx, [[22*s,13*s],[19*s,5*s],[25*s,11*s]], '#922B21', '#FADBD8', 1*s);
+    _polyStroke(ctx, [[34*s,13*s],[37*s,5*s],[31*s,11*s]], '#922B21', '#FADBD8', 1*s);
+    // eyes
+    _circle(ctx, 25*s, 17*s, 2*s, '#F9E79F');
+    _circle(ctx, 31*s, 17*s, 2*s, '#F9E79F');
+    // wings
+    _pathStroke(ctx, `M${16*s},${29*s} Q${4*s},${19*s} ${8*s},${33*s} Q${12*s},${37*s} ${16*s},${35*s}Z`, '#922B21', '#FADBD8', 1*s);
+    _pathStroke(ctx, `M${40*s},${29*s} Q${52*s},${19*s} ${48*s},${33*s} Q${44*s},${37*s} ${40*s},${35*s}Z`, '#922B21', '#FADBD8', 1*s);
+  },
+
+  bird(ctx, s) {
+    ctx.fillStyle = '#1A5276';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    _ellipseStroke(ctx, 28*s, 37*s, 11*s, 9*s, '#2E86C1', '#AED6F1', 1.2*s);
+    _circleStroke(ctx, 28*s, 22*s, 9*s, '#2E86C1', '#AED6F1', 1.2*s);
+    // beak
+    _polyStroke(ctx, [[28*s,20*s],[37*s,22*s],[28*s,26*s]], '#F39C12', '#FDEBD0', 0.8*s);
+    // eye
+    _circle(ctx, 25*s, 21*s, 2*s, 'white');
+    _circle(ctx, 25*s, 21*s, 1*s, '#1A252F');
+    // wings
+    _pathStroke(ctx, `M${17*s},${31*s} Q${6*s},${23*s} ${10*s},${39*s} Q${14*s},${43*s} ${17*s},${37*s}Z`, '#1A5276', '#AED6F1', 1*s);
+    _pathStroke(ctx, `M${39*s},${31*s} Q${50*s},${23*s} ${46*s},${39*s} Q${42*s},${43*s} ${39*s},${37*s}Z`, '#1A5276', '#AED6F1', 1*s);
+    // tail feathers
+    _pathStroke(ctx, `M${22*s},${45*s} Q${18*s},${53*s} ${14*s},${51*s} Q${20*s},${49*s} ${22*s},${45*s}Z`, '#1A5276', '#AED6F1', 1*s);
+    _pathStroke(ctx, `M${34*s},${45*s} Q${38*s},${53*s} ${42*s},${51*s} Q${36*s},${49*s} ${34*s},${45*s}Z`, '#1A5276', '#AED6F1', 1*s);
+  },
+
+  beast(ctx, s) {
+    ctx.fillStyle = '#6E2C0E';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    _ellipseStroke(ctx, 28*s, 37*s, 14*s, 10*s, '#A04000', '#F0B27A', 1.2*s);
+    _circleStroke(ctx, 28*s, 21*s, 11*s, '#A04000', '#F0B27A', 1.2*s);
+    // ears
+    _polyStroke(ctx, [[18*s,13*s],[14*s,5*s],[23*s,11*s]], '#6E2C0E', '#F0B27A', 1*s);
+    _polyStroke(ctx, [[38*s,13*s],[42*s,5*s],[33*s,11*s]], '#6E2C0E', '#F0B27A', 1*s);
+    // eyes
+    _circle(ctx, 24*s, 20*s, 2.5*s, '#F8C471');
+    _circle(ctx, 32*s, 20*s, 2.5*s, '#F8C471');
+    _circle(ctx, 24*s, 20*s, 1.2*s, '#1A252F');
+    _circle(ctx, 32*s, 20*s, 1.2*s, '#1A252F');
+    // nose
+    _ellipseStroke(ctx, 28*s, 25*s, 3*s, 2*s, '#6E2C0E', '#F0B27A', 0.8*s);
+    // fangs
+    _poly(ctx, [[25*s,27*s],[23*s,33*s],[27*s,29*s]], 'white');
+    _poly(ctx, [[31*s,27*s],[33*s,33*s],[29*s,29*s]], 'white');
+  },
+
+  slime(ctx, s) {
+    ctx.fillStyle = '#1D6A3A';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    _pathStroke(ctx, `M${28*s},${45*s} Q${14*s},${45*s} ${12*s},${34*s} Q${10*s},${22*s} ${20*s},${16*s} Q${28*s},${12*s} ${36*s},${16*s} Q${46*s},${22*s} ${44*s},${34*s} Q${42*s},${45*s} ${28*s},${45*s}Z`, '#27AE60', '#A9DFBF', 1.5*s);
+    // highlight
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    _ellipse(ctx, 22*s, 20*s, 5*s, 3*s, '#D5F5E3');
+    ctx.restore();
+    // eyes
+    _circle(ctx, 23*s, 29*s, 3*s, 'white');
+    _circle(ctx, 33*s, 29*s, 3*s, 'white');
+    _circle(ctx, 23*s, 30*s, 1.5*s, '#1D6A3A');
+    _circle(ctx, 33*s, 30*s, 1.5*s, '#1D6A3A');
+    // smile
+    ctx.strokeStyle = '#A9DFBF'; ctx.lineWidth = 1.5*s; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(22*s,35*s); ctx.quadraticCurveTo(28*s,39*s,34*s,35*s); ctx.stroke();
+  },
+
+  spirit(ctx, s) {
+    ctx.fillStyle = '#5B2C6F';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body
+    ctx.save(); ctx.globalAlpha = 0.9;
+    _ellipseStroke(ctx, 28*s, 33*s, 10*s, 13*s, '#9B59B6', '#D7BDE2', 1.2*s);
+    ctx.restore();
+    // tail wisps
+    ctx.save(); ctx.globalAlpha = 0.8;
+    _pathStroke(ctx, `M${18*s},${41*s} Q${14*s},${49*s} ${18*s},${53*s} Q${22*s},${49*s} ${20*s},${43*s}Z`, '#9B59B6', '#D7BDE2', 1*s);
+    _pathStroke(ctx, `M${28*s},${45*s} Q${28*s},${53*s} ${28*s},${55*s} Q${30*s},${51*s} ${30*s},${45*s}Z`, '#9B59B6', '#D7BDE2', 1*s);
+    _pathStroke(ctx, `M${38*s},${41*s} Q${42*s},${49*s} ${38*s},${53*s} Q${34*s},${49*s} ${36*s},${43*s}Z`, '#9B59B6', '#D7BDE2', 1*s);
+    ctx.restore();
+    // head
+    _circleStroke(ctx, 28*s, 18*s, 10*s, '#BB8FCE', '#D7BDE2', 1.5*s);
+    _circle(ctx, 28*s, 18*s, 6*s, '#E8DAEF');
+    // eyes
+    _circle(ctx, 25*s, 17*s, 2*s, '#5B2C6F');
+    _circle(ctx, 31*s, 17*s, 2*s, '#5B2C6F');
+  },
+
+  aqua(ctx, s) {
+    ctx.fillStyle = '#154360';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    _ellipseStroke(ctx, 25*s, 28*s, 14*s, 10*s, '#2E86C1', '#AED6F1', 1.2*s);
+    // tail
+    _pathStroke(ctx, `M${39*s},${28*s} Q${50*s},${20*s} ${52*s},${28*s} Q${50*s},${36*s} ${39*s},${28*s}Z`, '#1A5276', '#AED6F1', 1*s);
+    // top fin
+    _pathStroke(ctx, `M${20*s},${18*s} Q${28*s},${12*s} ${36*s},${18*s} Q${28*s},${20*s} ${20*s},${18*s}Z`, '#1A5276', '#AED6F1', 1*s);
+    // eye
+    _circle(ctx, 18*s, 26*s, 3.5*s, 'white');
+    _circle(ctx, 18*s, 26*s, 2*s, '#1A252F');
+    _circle(ctx, 17*s, 25*s, 0.8*s, 'white');
+    // scales
+    ctx.strokeStyle = '#AED6F1'; ctx.lineWidth = 1*s;
+    ctx.beginPath(); ctx.moveTo(28*s,22*s); ctx.quadraticCurveTo(32*s,24*s,30*s,28*s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(32*s,24*s); ctx.quadraticCurveTo(36*s,26*s,34*s,30*s); ctx.stroke();
+  },
+
+  insect(ctx, s) {
+    ctx.fillStyle = '#0E6655';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // wings (drawn first, behind body)
+    ctx.save(); ctx.globalAlpha = 0.85;
+    _ellipseStrokeRotated(ctx, 18*s, 22*s, 10*s, 6*s, -20, '#A9DFBF', '#D5F5E3', 1*s);
+    _ellipseStrokeRotated(ctx, 38*s, 22*s, 10*s, 6*s,  20, '#A9DFBF', '#D5F5E3', 1*s);
+    ctx.globalAlpha = 0.6;
+    _ellipseStrokeRotated(ctx, 16*s, 30*s, 8*s, 5*s,  10, '#D5F5E3', '#D5F5E3', 0.8*s);
+    _ellipseStrokeRotated(ctx, 40*s, 30*s, 8*s, 5*s, -10, '#D5F5E3', '#D5F5E3', 0.8*s);
+    ctx.restore();
+    // body segments
+    _ellipseStroke(ctx, 28*s, 20*s, 7*s, 6*s, '#1E8449', '#A9DFBF', 1.2*s);
+    _ellipseStroke(ctx, 28*s, 30*s, 6*s, 6*s, '#239B56', '#A9DFBF', 1.2*s);
+    _ellipseStroke(ctx, 28*s, 40*s, 5*s, 5*s, '#1E8449', '#A9DFBF', 1.2*s);
+    // eyes
+    _circle(ctx, 25*s, 18*s, 2.5*s, '#F9E79F');
+    _circle(ctx, 31*s, 18*s, 2.5*s, '#F9E79F');
+    // antennae
+    ctx.strokeStyle = '#A9DFBF'; ctx.lineWidth = 1.5*s; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(25*s,14*s); ctx.lineTo(20*s,6*s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(31*s,14*s); ctx.lineTo(36*s,6*s); ctx.stroke();
+    _circle(ctx, 20*s, 6*s, 2*s, '#A9DFBF');
+    _circle(ctx, 36*s, 6*s, 2*s, '#A9DFBF');
+  },
+
+  plant(ctx, s) {
+    ctx.fillStyle = '#145A32';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // stem
+    _rectStroke(ctx, 26*s, 30*s, 4*s, 18*s, 2*s, '#27AE60', '#A9DFBF', 1*s);
+    // leaves
+    _pathStroke(ctx, `M${28*s},${38*s} Q${16*s},${30*s} ${14*s},${20*s} Q${22*s},${24*s} ${28*s},${32*s}Z`, '#2ECC71', '#A9DFBF', 1*s);
+    _pathStroke(ctx, `M${28*s},${38*s} Q${40*s},${30*s} ${42*s},${20*s} Q${34*s},${24*s} ${28*s},${32*s}Z`, '#27AE60', '#A9DFBF', 1*s);
+    // petals
+    _ellipseStroke(ctx, 28*s, 10*s, 4*s, 6*s, '#F4D03F', '#FCF3CF', 1*s);
+    _ellipseStroke(ctx, 28*s, 30*s, 4*s, 6*s, '#F4D03F', '#FCF3CF', 1*s);
+    _ellipseStroke(ctx, 18*s, 20*s, 6*s, 4*s, '#F4D03F', '#FCF3CF', 1*s);
+    _ellipseStroke(ctx, 38*s, 20*s, 6*s, 4*s, '#F4D03F', '#FCF3CF', 1*s);
+    // flower center
+    _circleStroke(ctx, 28*s, 20*s, 6*s, '#E67E22', '#FCF3CF', 1.2*s);
+    _circle(ctx, 28*s, 20*s, 3*s, '#F39C12');
+  },
+
+  golem(ctx, s) {
+    ctx.fillStyle = '#2C3E50';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body rock
+    _pathStroke(ctx, `M${10*s},${45*s} Q${8*s},${33*s} ${16*s},${23*s} Q${22*s},${15*s} ${28*s},${13*s} Q${34*s},${15*s} ${40*s},${23*s} Q${48*s},${33*s} ${46*s},${45*s}Z`, '#717D7E', '#D5D8DC', 1.5*s);
+    // surface line
+    ctx.strokeStyle = '#D5D8DC'; ctx.lineWidth = 1*s; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(18*s,20*s); ctx.quadraticCurveTo(28*s,32*s,38*s,20*s); ctx.stroke();
+    // cracks
+    ctx.strokeStyle = '#AEB6BF'; ctx.lineWidth = 1.5*s;
+    ctx.beginPath(); ctx.moveTo(20*s,18*s); ctx.lineTo(24*s,29*s); ctx.lineTo(20*s,37*s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(36*s,20*s); ctx.lineTo(32*s,31*s); ctx.lineTo(36*s,39*s); ctx.stroke();
+    // eyes
+    _rectStroke(ctx, 21*s, 29*s, 5*s, 4*s, 1*s, '#F5CBA7', '#D5D8DC', 0.8*s);
+    _rectStroke(ctx, 30*s, 29*s, 5*s, 4*s, 1*s, '#F5CBA7', '#D5D8DC', 0.8*s);
+    // mouth
+    ctx.strokeStyle = '#AEB6BF'; ctx.lineWidth = 2*s; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(22*s,38*s); ctx.lineTo(34*s,38*s); ctx.stroke();
+  },
+
+  phantom(ctx, s) {
+    ctx.fillStyle = '#1C2833';
+    ctx.fillRect(0, 0, 56*s, 56*s);
+    // body
+    _pathStroke(ctx, `M${28*s},${45*s} Q${14*s},${45*s} ${12*s},${31*s} Q${12*s},${17*s} ${28*s},${13*s} Q${44*s},${17*s} ${44*s},${31*s} Q${42*s},${45*s} ${36*s},${43*s} Q${32*s},${41*s} ${28*s},${45*s}Z`, '#5D6D7E', '#BFC9CA', 1.5*s);
+    // bottom fringe
+    ctx.strokeStyle = '#BFC9CA'; ctx.lineWidth = 1*s; ctx.lineCap = 'round';
+    ctx.beginPath();
+    const fx = [12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44];
+    const fy = [39,45,41,47,43,47,43,47,45,47,43,47,41,45,39,45,39];
+    ctx.moveTo(fx[0]*s, fy[0]*s);
+    for (let i=1; i<fx.length; i++) ctx.lineTo(fx[i]*s, fy[i]*s);
+    ctx.stroke();
+    // eyes
+    _ellipseStroke(ctx, 23*s, 28*s, 4*s, 5*s, '#A569BD', '#D2B4DE', 1.2*s);
+    _ellipseStroke(ctx, 33*s, 28*s, 4*s, 5*s, '#A569BD', '#D2B4DE', 1.2*s);
+    _ellipse(ctx, 23*s, 28*s, 2*s, 3*s, '#E8DAEF');
+    _ellipse(ctx, 33*s, 28*s, 2*s, 3*s, '#E8DAEF');
+  },
+};
+
+// ===== Canvas描画ユーティリティ =====
+
+function _circle(ctx, cx, cy, r, fill) {
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = fill; ctx.fill();
+}
+function _circleStroke(ctx, cx, cy, r, fill, stroke, lw) {
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke();
+}
+function _ellipse(ctx, cx, cy, rx, ry, fill) {
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+  ctx.fillStyle = fill; ctx.fill();
+}
+function _ellipseStroke(ctx, cx, cy, rx, ry, fill, stroke, lw) {
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke();
+}
+function _ellipseStrokeRotated(ctx, cx, cy, rx, ry, deg, fill, stroke, lw) {
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, deg * Math.PI / 180, 0, Math.PI*2);
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke();
+}
+function _rectStroke(ctx, x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke();
+}
+function _poly(ctx, pts, fill) {
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+}
+function _polyStroke(ctx, pts, fill, stroke, lw) {
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.stroke();
+}
+function _pathStroke(ctx, d, fill, stroke, lw) {
+  const p = new Path2D(d);
+  ctx.fillStyle = fill; ctx.fill(p);
+  ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(p);
 }
