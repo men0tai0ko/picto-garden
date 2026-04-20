@@ -54,6 +54,7 @@ function wrapWithGenerationBadge(iconEl, generation) {
     const badge = document.createElement('span');
     badge.className = 'generation-badge';
     badge.textContent = `${generation}世`;
+    if (generation >= 2) badge.style.background = '#FFD700';
     wrap.appendChild(badge);
   }
   return wrap;
