@@ -241,7 +241,7 @@ function showGeneratedOverlay(pet) {
   imgEl.className = 'overlay-pet-img';
   const blobUrl = URL.createObjectURL(pet.imageData);
   imgEl.src = blobUrl;
-  imgEl.onload = () => {};  // blobUrlはOK後に解放しない（表示中は保持）
+  imgEl.onload = () => URL.revokeObjectURL(blobUrl);
 
   infoArea.innerHTML = '';
   infoArea.appendChild(imgEl);
@@ -1013,10 +1013,13 @@ function startHungerTimer() {
       }
       // ====================
 
-      // 庭パネルが開いていれば最新データでパネルを再描画
+      // 庭パネルが開いていれば最新データでパネルを再描画（非表示時は再openしない）
       if (panelOpenPetId) {
-        const latest = pets.find(p => p.id === panelOpenPetId);
-        if (latest) await showPetPanel(latest);
+        const panel = document.getElementById('pet-panel');
+        if (panel && panel.classList.contains('open')) {
+          const latest = pets.find(p => p.id === panelOpenPetId);
+          if (latest) await showPetPanel(latest);
+        }
       }
       // ケージ画面が表示中であれば各カードをスクロール位置を保持したまま更新
       const cageScreen = document.getElementById('screen-cage');
@@ -2750,6 +2753,8 @@ async function showBreedOverlay(pets, user) {
   // 選択状態管理
   let selectedIds = [];
 
+  let breedLimitMsg = false;
+
   const render = async () => {
     // 毎回最新データを取得（給餌等による変化を反映）
     const latestPets = await getAllPets();
@@ -2762,6 +2767,7 @@ async function showBreedOverlay(pets, user) {
           2体選択・満腹度${BREED_HUNGER_MIN}以上が必要 / 🪙${cost}
         </p>
         <div id="breed-pet-list" style="display:flex;flex-direction:column;gap:8px;width:100%;margin:10px 0"></div>
+        ${breedLimitMsg ? `<p style="color:var(--color-accent);font-size:12px;text-align:center;margin:0 0 4px">2体まで選択できます</p>` : ''}
         <div style="display:flex;gap:8px;width:100%;margin-top:4px">
           <button class="btn-primary" id="breed-exec-btn"
             style="flex:1;background:${latestUser.currency < cost ? '#aaa' : 'var(--color-accent)'}"
@@ -2797,8 +2803,12 @@ async function showBreedOverlay(pets, user) {
         row.addEventListener('click', async () => {
           if (isSelected) {
             selectedIds = selectedIds.filter(id => id !== pet.id);
+            breedLimitMsg = false;
           } else if (selectedIds.length < 2) {
             selectedIds.push(pet.id);
+            breedLimitMsg = false;
+          } else {
+            breedLimitMsg = true;
           }
           await render();
         });
