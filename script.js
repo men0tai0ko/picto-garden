@@ -853,6 +853,7 @@ async function showPetPanel(pet) {
     const fresh = await getPet(pet.id);
     if (!fresh) { btn.disabled = false; return; }
     await waterPet(fresh);
+    btn.disabled = false;
     await renderStatusBar();
     await renderGarden();
     await renderCage();
@@ -866,8 +867,8 @@ async function showPetPanel(pet) {
   drawPetToCanvas(pet, panelCanvas, 48, 8);
   const panelEvoClass = getEvolutionClass(pet.evolutionStage ?? 0);
   if (panelEvoClass) panelCanvas.classList.add(panelEvoClass);
-  // 世代バッジをcanvasの親要素に追加
-  if ((pet.generation ?? 0) >= 1) {
+  // 世代バッジをcanvasの親要素に追加（wrapWithGenerationBadgeと同条件：generation>=2のみ）
+  if ((pet.generation ?? 0) >= 2) {
     const panelWrap = panelCanvas.parentElement;
     if (panelWrap && !panelWrap.querySelector('.generation-badge')) {
       panelWrap.style.position = 'relative';
@@ -1352,6 +1353,8 @@ async function feedPet(pet) {
       fresh[stat] = Math.min(caps[stat], fresh[stat] + gain);
     };
 
+    applyGain('hp');
+    applyGain('mp');
     applyGain('attack');
     applyGain('defense');
   }
@@ -1561,6 +1564,7 @@ async function renderBattle() {
       <button id="battle-start-btn" class="btn-primary" style="width:100%;margin-top:10px"${canBlock ? ' disabled' : ''}>
         ⚔️ 訓練開始
       </button>
+      ${canBlock ? `<p style="color:var(--color-hp);font-size:12px;text-align:center;margin:4px 0 0">${canBlock}</p>` : ''}
       <div style="font-size:12px;color:${affinityColor};text-align:center;margin-top:6px">
         敵属性: ${enemyAttr} &nbsp;${affinityLabel}
       </div>
@@ -1589,7 +1593,6 @@ async function renderBattle() {
         <button id="battle-feed-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0">🍖 餌 🪙${price}</button>
         <button id="battle-water-btn" class="btn-buy" style="flex:1;font-size:12px;padding:7px 0;background:var(--color-mp)">💧 おみず</button>
       </div>
-      ${canBlock ? `<p style="color:var(--color-hp);font-size:12px;margin-top:8px;text-align:center">${canBlock}</p>` : ''}
     </div>
   `;
 
@@ -1861,7 +1864,7 @@ async function executeBattle() {
 
   closeBattleLogModal();
 
-  if (lastResult) {
+  if (lastResult || battleState.session.battles === 0) {
     showBattleResultOverlay(battleState.session, stopReason, lastResult);
   }
 }
@@ -2082,8 +2085,13 @@ async function showBattleResultOverlay(session, stopReason, lastResult) {
 
   // タイトル
   const titleEl = document.getElementById('bro-title');
-  titleEl.textContent = `${session.wins}勝 / ${session.battles}戦`;
-  titleEl.style.color = session.wins > 0 ? 'var(--color-main)' : 'var(--color-hp)';
+  if (session.battles === 0) {
+    titleEl.textContent = '0戦（中断）';
+    titleEl.style.color = 'var(--color-text-light)';
+  } else {
+    titleEl.textContent = `${session.wins}勝 / ${session.battles}戦`;
+    titleEl.style.color = session.wins > 0 ? 'var(--color-main)' : 'var(--color-hp)';
+  }
 
   // ログを転写
   const broLog = document.getElementById('bro-log');
@@ -2756,12 +2764,13 @@ async function showBreedOverlay(pets, user) {
         <div id="breed-pet-list" style="display:flex;flex-direction:column;gap:8px;width:100%;margin:10px 0"></div>
         <div style="display:flex;gap:8px;width:100%;margin-top:4px">
           <button class="btn-primary" id="breed-exec-btn"
-            style="flex:1;background:var(--color-accent)"
-            ${selectedIds.length !== 2 ? 'disabled' : ''}>
+            style="flex:1;background:${latestUser.currency < cost ? '#aaa' : 'var(--color-accent)'}"
+            ${(selectedIds.length !== 2 || latestUser.currency < cost) ? 'disabled' : ''}>
             繁殖！
           </button>
           <button class="btn-primary" id="breed-cancel-btn" style="flex:1;background:#aaa">キャンセル</button>
         </div>
+        ${latestUser.currency < cost ? `<p style="color:var(--color-hp);font-size:12px;text-align:center;margin:6px 0 0">通貨不足（必要 🪙${cost} / 所持 🪙${latestUser.currency}）</p>` : ''}
       </div>
     `;
 
@@ -2868,6 +2877,7 @@ function showBreedResultOverlay(child) {
     <div>性格: <strong>${child.personality}</strong></div>
     <div>属性: <strong>${child.attribute}</strong></div>
     <div>等級: <strong>${child.rarity}${{ '伝説':'★★★★★','英雄':'★★★★','希少':'★★★','高級':'★★','一般':'★' }[child.rarity] ?? ''}</strong></div>
+    <div>世代: <strong>${child.generation ?? 1}世</strong></div>
     <div style="font-size:11px;color:var(--color-text-light)">体力 ${child.hp} / 魔力 ${child.mp} / ATK ${child.attack} / DEF ${child.defense}</div>
   `;
   overlay.classList.remove('hidden');
